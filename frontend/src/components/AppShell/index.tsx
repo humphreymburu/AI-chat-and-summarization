@@ -28,6 +28,12 @@ interface AppShellProps {
   onNewChat?: () => void;
   /** false lets the page manage its own scrolling (Chat). */
   scroll?: boolean;
+  /**
+   * Server's guess from the login cookie. false = guest for certain, so the
+   * guest layout shows at once; true = show the signed-in layout as a
+   * skeleton while the session loads. Unset = unknown.
+   */
+  signedIn?: boolean;
 }
 
 export default function AppShell({
@@ -35,6 +41,7 @@ export default function AppShell({
   history,
   onNewChat,
   scroll = true,
+  signedIn,
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -73,7 +80,12 @@ export default function AppShell({
     </Link>
   );
 
-  if (!user) {
+  // Waiting for the session of someone who is probably signed in.
+  const memberPending = !user && isPending && signedIn === true;
+  // Guest nav is safe to show once we know there's no session.
+  const guestKnown = !isPending || signedIn === false;
+
+  if (!user && !memberPending) {
     return (
       <div className="kb-root kb-calm kb-shell kb-shell-guest">
         <header className="kb-guestbar">
@@ -88,7 +100,7 @@ export default function AppShell({
             />
             EcoBuddy
           </Link>
-          {!isPending && (
+          {guestKnown ? (
             <nav className="kb-guestbar-nav" aria-label="Main">
               {LINKS.map(({ href, label }) => (
                 <Link
@@ -109,6 +121,12 @@ export default function AppShell({
                 Sign up
               </Link>
             </nav>
+          ) : (
+            <div className="kb-guestbar-nav" aria-hidden="true">
+              <span className="kb-skeleton kb-skel-pill" />
+              <span className="kb-skeleton kb-skel-pill" />
+              <span className="kb-skeleton kb-skel-pill kb-skel-pill-wide" />
+            </div>
           )}
         </header>
         <main className={`kb-main${scroll ? "" : " kb-main-fixed"}`}>
@@ -192,7 +210,19 @@ export default function AppShell({
         </nav>
         <div className="kb-side-history">{history}</div>
         <div className="kb-side-account">
-          {isPending ? null : user ? (
+          {!user ? (
+            <span
+              className="kb-side-user"
+              role="status"
+              aria-label="Loading your account"
+            >
+              <span className="kb-skeleton kb-skel-avatar" aria-hidden="true" />
+              <span className="kb-skel-stack" aria-hidden="true">
+                <span className="kb-skeleton kb-skel-line" />
+                <span className="kb-skeleton kb-skel-line kb-skel-sm" />
+              </span>
+            </span>
+          ) : (
             <>
               <span className="kb-side-user" title={user.email}>
                 <span className="kb-nav-avatar" aria-hidden="true">
@@ -212,15 +242,6 @@ export default function AppShell({
               >
                 Log out
               </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="kb-side-quiet">
-                Log in
-              </Link>
-              <Link href="/signup" className="kb-side-signup">
-                Sign up
-              </Link>
             </>
           )}
         </div>

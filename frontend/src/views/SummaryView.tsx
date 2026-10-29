@@ -232,33 +232,62 @@ function SourceList({ documents }: { documents: SummaryDocument[] }) {
   );
 }
 
+// Shaped like the result (basis line, audience tabs, answer, sources) so the
+// page doesn't jump when it arrives.
 function LoadingSkeleton() {
   return (
-    <div role="status" aria-label="Preparing your summary">
-      <div className="kb-sum-result-box" style={{ marginBottom: 20 }}>
-        <div
-          className="kb-skeleton"
-          style={{ width: "40%", height: 20, marginBottom: 16 }}
-        />
-        {[100, 90, 75, 85, 70, 60, 80].map((w, i) => (
-          <div
-            key={i}
-            className="kb-skeleton"
-            style={{ width: `${w}%`, height: 11, marginBottom: 8 }}
-          />
-        ))}
-      </div>
-      <p className="kb-sum-wait">
+    <div className="kb-results-wrap" role="status" aria-busy="true">
+      <p className="kb-sum-wait kb-skel-wait">
         Reading the documents and writing your summary. This can take up to a
         minute.
       </p>
+      <span
+        className="kb-skeleton kb-skel-line kb-skel-basis"
+        aria-hidden="true"
+      />
+      <section className="kb-answer" aria-hidden="true">
+        <div className="kb-answer-tabs">
+          {[72, 96, 64, 60, 104].map((w, i) => (
+            <span key={i} className="kb-skel-tab">
+              <span className="kb-skeleton kb-skel-line" style={{ width: w }} />
+            </span>
+          ))}
+        </div>
+        <div className="kb-answer-panel kb-skel-stack-lg">
+          <span className="kb-skeleton kb-skel-heading" />
+          {[100, 96, 92, 98, 70].map((w, i) => (
+            <span
+              key={i}
+              className="kb-skeleton kb-skel-text"
+              style={{ width: `${w}%` }}
+            />
+          ))}
+        </div>
+      </section>
+      <section className="kb-sources" aria-hidden="true">
+        <span className="kb-skeleton kb-skel-heading kb-skel-short" />
+        <ol className="kb-source-list">
+          {[78, 62, 70].map((w, i) => (
+            <li key={i} className="kb-source-item">
+              <span className="kb-skeleton kb-skel-num" />
+              <span className="kb-skel-stack kb-skel-grow">
+                <span
+                  className="kb-skeleton kb-skel-line"
+                  style={{ width: `${w}%` }}
+                />
+                <span className="kb-skeleton kb-skel-line kb-skel-sm" />
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
     </div>
   );
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function SummaryPage() {
+export default function SummaryPage({ signedIn }: { signedIn?: boolean }) {
   const [query, setQuery] = useState("");
   const [activeScope, setActiveScope] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -318,8 +347,7 @@ export default function SummaryPage() {
 
   return (
     <>
-      <AppShell>
-
+      <AppShell signedIn={signedIn}>
         <div className="kb-wrap">
           {/* ── Hero + input — single centred column ── */}
           <div className="kb-summary-hero">

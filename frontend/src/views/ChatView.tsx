@@ -171,16 +171,39 @@ function formatUpdated(value: string) {
   return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-export default function ChatPage() {
+export default function ChatPage({ signedIn }: { signedIn?: boolean }) {
   const { data: session, isPending } = useSession();
   const user = session?.user ?? null;
 
+  // No login cookie means a guest for certain, so skip the wait.
+  if (isPending && signedIn !== false) {
+    return (
+      <AppShell
+        scroll={false}
+        signedIn={signedIn}
+        history={signedIn ? <HistorySkeleton /> : null}
+      >
+        <ChatStartSkeleton />
+      </AppShell>
+    );
+  }
   // Remount on login/logout so chats from one user never leak to another.
-  if (isPending) return <AppShell scroll={false}>{null}</AppShell>;
-  return <ChatWorkspace key={user?.id ?? "guest"} user={user} />;
+  return (
+    <ChatWorkspace
+      key={user?.id ?? "guest"}
+      user={user}
+      signedIn={signedIn}
+    />
+  );
 }
 
-function ChatWorkspace({ user }: { user: SessionUser | null }) {
+function ChatWorkspace({
+  user,
+  signedIn,
+}: {
+  user: SessionUser | null;
+  signedIn?: boolean;
+}) {
   const [firstCid] = useState(createConversationId);
   const [activeCid, setActiveCid] = useState(firstCid);
   // A summary sent here from the Summary page opens as the first messages.
@@ -189,6 +212,8 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
     clearChatSeed();
   }, []);
   const [saved, setSaved] = useState<ConversationSummary[]>([]);
+  // Guests have no saved list, so there is nothing to wait for.
+  const [savedLoaded, setSavedLoaded] = useState(!user);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [input, setInput] = useState("");
 
@@ -198,7 +223,8 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
     fetch("/api/conversations")
       .then((res) => (res.ok ? res.json() : { conversations: [] }))
       .then((data) => setSaved(data.conversations ?? []))
-      .catch(() => setSaved([]));
+      .catch(() => setSaved([]))
+      .finally(() => setSavedLoaded(true));
   }, [user]);
 
   const saveConversation = (id: string, messages: UIMessage[]) => {
@@ -304,7 +330,9 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
     />
   );
 
-  const history = user ? (
+  const history = !user ? null : !savedLoaded ? (
+    <HistorySkeleton />
+  ) : (
     <>
       <p className="kb-side-label">Recent</p>
       {saved.length === 0 && (
@@ -339,15 +367,22 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
         </div>
       ))}
     </>
-  ) : null;
+  );
 
   return (
-    <AppShell history={history} onNewChat={handleNewChat} scroll={false}>
+    <AppShell
+      history={history}
+      onNewChat={handleNewChat}
+      scroll={false}
+      signedIn={signedIn}
+    >
       <div className="kb-chat-page">
         <div className="kb-chat-layout kb-chat-layout-solo">
           {/* ── Main chat area ── */}
           <div className="kb-chat-main">
-            {isEmpty ? (
+            {openingId ? (
+              <ConversationSkeleton />
+            ) : isEmpty ? (
               <div className="kb-chat-hero">
                 <h1 className="kb-chat-hero-title">
                   {firstName ? (
@@ -622,6 +657,98 @@ function TypingDots() {
         <span />
       </div>
     </div>
+  );
+}
+
+// ── Skeletons ── shaped like the real layout so nothing jumps when it loads.
+
+function HistorySkeleton() {
+  return (
+    <>
+      <p className="kb-side-label">Recent</p>
+      <div role="status" aria-label="Loading your conversations">
+        {[82, 64, 74, 56].map((w, i) => (
+          <div key={i} className="kb-skel-history-row" aria-hidden="true">
+            <span
+              className="kb-skeleton kb-skel-line"
+              style={{ width: `${w}%` }}
+            />
+            <span className="kb-skeleton kb-skel-line kb-skel-sm" />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ChatStartSkeleton() {
+  return (
+    <div className="kb-chat-page">
+      <div className="kb-chat-layout kb-chat-layout-solo">
+        <div className="kb-chat-main">
+          <div className="kb-chat-hero" role="status" aria-label="Loading">
+            <div className="kb-skel-hero" aria-hidden="true">
+              <span className="kb-skeleton kb-skel-title" />
+              <span className="kb-skeleton kb-skel-line kb-skel-lede" />
+              <span className="kb-skeleton kb-skel-line kb-skel-lede kb-skel-short" />
+              <div className="kb-start-pills">
+                {[0, 1, 2, 3].map((i) => (
+                  <span key={i} className="kb-skeleton kb-skel-pill" />
+                ))}
+              </div>
+              <div className="kb-chat-hero-composer">
+                <span className="kb-skeleton kb-skel-composer" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConversationSkeleton() {
+  return (
+    <>
+      <div className="kb-chat-top-bar" aria-hidden="true">
+        <span className="kb-skeleton kb-skel-line" style={{ width: 220 }} />
+      </div>
+      <div className="kb-scroll-fill">
+        <div className="kb-chat-scroll">
+          <div
+            className="kb-chat-msgs"
+            role="status"
+            aria-label="Opening conversation"
+          >
+            {[
+              { question: 46, answer: [100, 94, 88, 60] },
+              { question: 34, answer: [100, 82, 70] },
+            ].map(({ question, answer }, i) => (
+              <div key={i} aria-hidden="true">
+                <div className="kb-chat-user-row">
+                  <span
+                    className="kb-skeleton kb-skel-bubble"
+                    style={{ width: `${question}%` }}
+                  />
+                </div>
+                <div className="kb-chat-ai-msg kb-skel-answer">
+                  {answer.map((w, j) => (
+                    <span
+                      key={j}
+                      className="kb-skeleton kb-skel-line"
+                      style={{ width: `${w}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="kb-chat-input-dock" aria-hidden="true">
+        <span className="kb-skeleton kb-skel-composer" />
+      </div>
+    </>
   );
 }
 
