@@ -14,10 +14,10 @@
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@unep/components/*": [
@@ -34,6 +34,9 @@
       ],
       "@unep/styles/*": [
         "src/styles/*"
+      ],
+      "@unep/views/*": [
+        "src/views/*"
       ]
     },
     "incremental": true,
@@ -47,7 +50,8 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
