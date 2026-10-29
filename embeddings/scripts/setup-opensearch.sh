@@ -45,6 +45,8 @@ create_chunks_index() {
           \"chunk_total\":      { \"type\": \"integer\" },
           \"langcode\":         { \"type\": \"keyword\" },
           \"story_type\":       { \"type\": \"keyword\" },
+          \"content_type\":     { \"type\": \"keyword\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } },
+          \"resource_type\":    { \"type\": \"keyword\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } },
           \"has_summary\":      { \"type\": \"boolean\" },
           \"has_questions\":    { \"type\": \"boolean\" },
           \"low_content\":      { \"type\": \"boolean\" },
@@ -88,7 +90,17 @@ create_chunks_index() {
   if [[ "$HTTP_CODE" == "200" ]]; then
     echo "Created ${CHUNKS_INDEX}."
   elif grep -q "resource_already_exists_exception" /tmp/setup-opensearch-chunks.out; then
-    echo "${CHUNKS_INDEX} already exists."
+    echo "${CHUNKS_INDEX} already exists; adding any new filter fields..."
+    # If a field already got dynamic-mapped (e.g. the worker wrote chunks
+    # before this script ran), OpenSearch rejects changing its root type and
+    # this call fails for that field alone — harmless, since the backend's
+    # filters query "<field>.keyword", which text-with-subfield already has.
+    curl "${OPTS[@]}" "${AUTH[@]}" -X PUT "${OPENSEARCH_URL}/${CHUNKS_INDEX}/_mapping" \
+      -d '{"properties": {
+        "content_type": {"type": "keyword", "fields": {"keyword": {"type": "keyword"}}},
+        "resource_type": {"type": "keyword", "fields": {"keyword": {"type": "keyword"}}}
+      }}'
+    echo
   else
     echo "Failed to create ${CHUNKS_INDEX}. HTTP ${HTTP_CODE}"
     cat /tmp/setup-opensearch-chunks.out

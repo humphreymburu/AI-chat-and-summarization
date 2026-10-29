@@ -933,3 +933,30 @@ a.kb-doc-title:hover { color: var(--kb-primary); }
   .kb-h1 { font-size: 36px; }
   .kb-sum-stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* Chat error row with retry */
+.kb-chat-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 680px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 57, 78, 0.25);
+  background: #FDF2F3;
+  color: #9F1D2D;
+  font-size: 14px;
+}
+.kb-chat-error span { flex: 1; overflow-wrap: anywhere; }
+.kb-chat-error-retry {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.kb-chat-error-retry:hover { background: rgba(232, 57, 78, 0.08); }

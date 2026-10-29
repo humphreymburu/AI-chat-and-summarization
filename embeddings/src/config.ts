@@ -68,9 +68,27 @@ export const config = {
     chunksAlias: readString('CHUNKS_ALIAS', 'chunks_current'),
   },
   embedding: {
-    version: readString('EMBED_VERSION', 'qwen3-8b_1024_chunked-multivec_v1'),
+    // v2: real Qwen3 vectors + LLM views (v1 chunks were stub zero vectors).
+    version: readString('EMBED_VERSION', 'qwen3-8b_1024_chunked-multivec_v2'),
     dimension: readNumber('EMBEDDING_DIMENSION', 1024),
-    provider: readOptionalString('EMBEDDING_PROVIDER', 'stub'),
+    // 'openrouter' = real embeddings + LLM views; 'stub' = no vectors or views
+    // (local chunker testing only — stub chunks are invisible to kNN search).
+    provider: readOptionalString('EMBEDDING_PROVIDER', 'openrouter'),
+  },
+  openrouter: {
+    apiKey: readOptionalString('OPENROUTER_API_KEY'),
+    baseUrl: readOptionalString('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+    // Must match the RAG backend's OPENROUTER_EMBEDDING_MODEL.
+    embeddingModel: readOptionalString('OPENROUTER_EMBEDDING_MODEL', 'qwen/qwen3-embedding-8b'),
+    embeddingBatchSize: readNumber('EMBEDDING_BATCH_SIZE', 32),
+    viewsModel: readOptionalString('VIEWS_MODEL', 'anthropic/claude-haiku-4-5'),
+  },
+  pipeline: {
+    // Parallel LLM view requests per article.
+    viewsConcurrency: readNumber('VIEWS_CONCURRENCY', 4),
+    // Articles that errored at the current EMBED_VERSION are skipped unless
+    // this is on, so one broken article can't burn API calls every tick.
+    retryErrors: readBoolean('RETRY_ERRORS', false),
   },
   source: {
     langcode: readOptionalString('SOURCE_LANGCODE', 'en'),

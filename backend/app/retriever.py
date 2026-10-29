@@ -198,6 +198,15 @@ class OpenSearchHybridRetriever:
         story_type = filters.get("story_type")
         if isinstance(story_type, list) and story_type:
             out.append({"terms": {"story_type": story_type}})
+        content_types = filters.get("content_types")
+        if isinstance(content_types, list) and content_types:
+            # .keyword: content_type was dynamic-mapped as text (its analyzer
+            # splits "press_release" into separate tokens), so an exact-match
+            # terms query has to hit the raw keyword subfield instead.
+            out.append({"terms": {"content_type.keyword": content_types}})
+        resource_types = filters.get("resource_types")
+        if isinstance(resource_types, list) and resource_types:
+            out.append({"terms": {"resource_type.keyword": resource_types}})
         date_gte = filters.get("publication_date_gte")
         if isinstance(date_gte, str) and date_gte:
             out.append({"range": {"publication_date": {"gte": date_gte}}})

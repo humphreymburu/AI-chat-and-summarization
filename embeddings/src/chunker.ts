@@ -34,6 +34,10 @@ export interface ArticleDoc {
   topics?: Array<{ name: string }> | string[];
   country?: Array<{ name: string }> | string[];
   story_type?: Array<{ name: string; id?: string }> | string[];
+  /** Drupal content type, e.g. "resource", "article", "press_release". */
+  type?: string;
+  /** Resource category, e.g. "Report", "Policy and strategy". */
+  resource_type?: Array<{ name: string; id?: string }> | string[];
   uuid?: string;
   nid?: string;
 }

@@ -156,12 +156,40 @@ async def lifespan(app: FastAPI):
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Scope chips in the UI ("Publications only", "Last 12 months", ...) map to
+# retriever filters. content_type / resource_type come from the source
+# articles index (v5) via the embeddings worker.
+SCOPE_FILTERS: Dict[str, Dict[str, Any]] = {
+    "all": {},
+    "resource": {"content_types": ["resource", "report_flagship"]},
+    "recent": {"publication_date_gte": "now-1y/d"},
+    "policy": {
+        "resource_types": [
+            "Policy and strategy",
+            "Medium term strategies",
+            "Resolutions, Treaties and Decisions",
+        ]
+    },
+}
+
+
+def _apply_scope(
+    filters: Optional[Dict[str, Any]], scope: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """Merge a UI scope into explicit filters (explicit filters win)."""
+    scope_filters = SCOPE_FILTERS.get((scope or "all").lower(), {})
+    if not scope_filters:
+        return filters
+    # Any filter disables the graph's langcode=en default, so keep it here.
+    return {"langcode": "en", **scope_filters, **(filters or {})}
+
+
 def _to_initial_state(req: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "question": req.get("question", ""),
         "chat_history": req.get("chat_history") or [],
         "mode": (req.get("mode") or "search").lower(),
-        "filters": req.get("filters"),
+        "filters": _apply_scope(req.get("filters"), req.get("scope")),
         "timings": {},
     }
 
@@ -252,6 +280,7 @@ async def _astream_chat_response(
     token_count = 0
     char_count = 0
     logged_nodes: set[str] = set()
+    final_answer = ""
     async for part in rag_graph.astream(
         initial,
         config=config,
@@ -280,9 +309,11 @@ async def _astream_chat_response(
                         reranked_docs=len((output or {}).get("reranked_docs") or []),
                         final_docs=len((output or {}).get("final_docs") or []),
                     )
+                output = output or {}
+                if kind == "values" and output.get("answer"):
+                    final_answer = str(output["answer"])
                 if sent_sources:
                     continue
-                output = output or {}
                 docs = output.get("final_docs") or []
                 sources = _docs_to_chat_sources(docs)
                 if sources:
@@ -316,6 +347,12 @@ async def _astream_chat_response(
                 token_count += 1
                 char_count += len(content)
                 yield {"type": "token", "token": content}
+    # Canned replies (greeting, off-topic, clarification) don't come from the
+    # streamed answer node, so send the final answer in one piece.
+    if token_count == 0 and final_answer:
+        token_count = 1
+        char_count = len(final_answer)
+        yield {"type": "token", "token": final_answer}
     logger.info(
         "chat_stream_graph_done",
         request_id=request_id,
@@ -357,6 +394,7 @@ class ChatStreamRequest(BaseModel):
     chat_history: list = Field(default_factory=list)
     mode: str = "search"
     filters: dict | None = None
+    scope: str | None = None
     thread_id: str | None = None
 
     @model_validator(mode="before")
@@ -371,7 +409,7 @@ class ChatStreamRequest(BaseModel):
 
         normalized = {**data}
         normalized.pop("input", None)
-        for key in ("question", "chat_history", "mode", "filters", "thread_id"):
+        for key in ("question", "chat_history", "mode", "filters", "scope", "thread_id"):
             if key not in normalized and key in input_data:
                 normalized[key] = input_data[key]
         return normalized
@@ -433,6 +471,125 @@ async def chat_stream(req: ChatStreamRequest):
 
 
 # ---------------------------------------------------------------------------
+# /chat/ui — AI SDK UI message stream protocol (for `useChat` from @ai-sdk/react)
+# https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+# ---------------------------------------------------------------------------
+
+class UIChatRequest(BaseModel):
+    """Body sent by the AI SDK's DefaultChatTransport, plus our extra fields."""
+    id: str | None = None
+    messages: list[Dict[str, Any]] = Field(default_factory=list)
+    mode: str = "search"
+    filters: dict | None = None
+    scope: str | None = None
+
+
+def _ui_message_text(message: Dict[str, Any]) -> str:
+    parts = message.get("parts") or []
+    text = "".join(
+        str(p.get("text", "")) for p in parts if isinstance(p, dict) and p.get("type") == "text"
+    )
+    return text or str(message.get("content") or "")
+
+
+def _ui_request_to_payload(req: UIChatRequest) -> Dict[str, Any]:
+    """Turn UIMessages into the graph's question + [{human, ai}] history."""
+    messages = req.messages
+    last_user = max(
+        (i for i, m in enumerate(messages) if m.get("role") == "user"), default=-1
+    )
+    history: list[Dict[str, str]] = []
+    for message in messages[:max(last_user, 0)]:
+        role = message.get("role")
+        if role == "user":
+            history.append({"human": _ui_message_text(message)})
+        elif role == "assistant" and history:
+            history[-1]["ai"] = _ui_message_text(message)
+    return {
+        "question": _ui_message_text(messages[last_user]) if last_user >= 0 else "",
+        "chat_history": history,
+        "mode": req.mode,
+        "filters": req.filters,
+        "scope": req.scope,
+        "thread_id": req.id,
+    }
+
+
+def _ui_chunk(chunk: Dict[str, Any] | str) -> str:
+    data = chunk if isinstance(chunk, str) else json.dumps(chunk)
+    return f"data: {data}\n\n"
+
+
+@app.post("/chat/ui")
+async def chat_ui(req: UIChatRequest):
+    payload = _ui_request_to_payload(req)
+    request_id = str(uuid.uuid4())
+    started_at = time.perf_counter()
+    logger.info(
+        "chat_ui_request_started",
+        request_id=request_id,
+        thread_id=payload.get("thread_id"),
+        question_chars=len(payload["question"]),
+        question_preview=payload["question"][:160],
+        history_turns=len(payload["chat_history"]),
+    )
+
+    async def event_generator():
+        text_id = "text-0"
+        text_started = False
+        try:
+            yield _ui_chunk({"type": "start", "messageId": f"msg-{uuid.uuid4().hex}"})
+            async for event in _astream_chat_response(payload, request_id, started_at):
+                if event["type"] == "sources":
+                    for i, source in enumerate(event["sources"]):
+                        yield _ui_chunk({
+                            "type": "source-url",
+                            "sourceId": f"src-{i}",
+                            "url": source["url"],
+                            "title": source["title"],
+                            "providerMetadata": {"unep": {"source": source["source"]}},
+                        })
+                elif event["type"] == "token":
+                    if not text_started:
+                        text_started = True
+                        yield _ui_chunk({"type": "text-start", "id": text_id})
+                    yield _ui_chunk({"type": "text-delta", "id": text_id, "delta": event["token"]})
+            if text_started:
+                yield _ui_chunk({"type": "text-end", "id": text_id})
+            yield _ui_chunk({"type": "finish", "finishReason": "stop"})
+            logger.info(
+                "chat_ui_response_completed",
+                request_id=request_id,
+                thread_id=payload.get("thread_id"),
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+        except asyncio.CancelledError:
+            logger.warning(
+                "chat_ui_client_disconnected",
+                request_id=request_id,
+                thread_id=payload.get("thread_id"),
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+            raise
+        except Exception as err:
+            logger.exception(
+                "chat_ui_response_failed",
+                request_id=request_id,
+                thread_id=payload.get("thread_id"),
+                elapsed_ms=_elapsed_ms(started_at),
+                error=str(err),
+            )
+            yield _ui_chunk({"type": "error", "errorText": str(err)})
+        yield _ui_chunk("[DONE]")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"x-vercel-ai-ui-message-stream": "v1", "Cache-Control": "no-cache"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # /search — structured summary endpoint with semantic cache
 # ---------------------------------------------------------------------------
 
@@ -440,6 +597,7 @@ class SearchRequest(BaseModel):
     """Request body for /search — single-turn, no chat_history."""
     query: str
     filters: Optional[Dict[str, Any]] = None
+    scope: Optional[str] = None
     cited_only: bool = False
     resources_scanned: Optional[int] = None
     total_knowledge_hubs: Optional[int] = None
@@ -458,9 +616,11 @@ async def search_endpoint(req: SearchRequest) -> SummaryResponse:
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=400, detail="query is required")
 
+    filters = _apply_scope(req.filters, req.scope)
+
     # Cache lookup
     if summary_cache:
-        cached = summary_cache.lookup(req.query, req.filters)
+        cached = summary_cache.lookup(req.query, filters)
         if cached:
             return cached
 
@@ -470,7 +630,7 @@ async def search_endpoint(req: SearchRequest) -> SummaryResponse:
         "question": req.query,
         "chat_history": [],
         "mode": "summary",
-        "filters": req.filters,
+        "filters": filters,
         "timings": {},
     }
     final_state = rag_graph.invoke(
@@ -511,7 +671,7 @@ async def search_endpoint(req: SearchRequest) -> SummaryResponse:
     # Store async; never block the response on cache write
     if summary_cache:
         asyncio.create_task(
-            asyncio.to_thread(summary_cache.store, req.query, req.filters, response)
+            asyncio.to_thread(summary_cache.store, req.query, filters, response)
         )
 
     logger.info(
