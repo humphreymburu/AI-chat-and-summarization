@@ -5,3 +5,13 @@
 
 # Registry credentials
 .dockerconfigjson
+
+# Coding assistant / harness files
+*TASKS*.md
+KB_DESIGN_REFRESH.md
+CLAUDE.md
+AGENTS.md
+.claude/
+.agents/
+.codex/
+.cursor/
