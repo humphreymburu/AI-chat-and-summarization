@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <div className="kb-root kb-auth-page">
+    <div className="kb-root kb-calm kb-auth-page">
       <AuthForm mode="signup" />
     </div>
   );

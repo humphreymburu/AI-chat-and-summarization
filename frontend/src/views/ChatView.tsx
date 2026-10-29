@@ -3,65 +3,36 @@
 import { Chat, useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useStickToBottom } from "use-stick-to-bottom";
 
-import KnowledgeNav from "@unep/components/KnowledgeNav";
+import AppShell from "@unep/components/AppShell";
 import { useSession } from "@unep/lib/auth-client";
 import { clearChatSeed, peekChatSeed } from "@unep/lib/chat-seed";
 import type { ConversationSummary } from "@unep/lib/conversations";
 
-// Topics and example questions for the empty state. Clicking a question
-// sends it as written.
-const TOPICS = [
+// Starting points on the empty state. Clicking a card sends its question
+// as written.
+const START_CARDS: { id: string; title: string; question: string }[] = [
   {
     id: "climate",
-    label: "Climate",
-    questions: [
-      "What are the projected carbon emission trends for G20 nations?",
-      "Which regions face the highest long-term drought risk?",
-      "What adaptation policies work best in coastal regions?",
-      "How do countries report progress on their climate pledges?",
-    ],
+    title: "Climate trends",
+    question: "What are the projected carbon emission trends for G20 nations?",
   },
   {
     id: "biodiversity",
-    label: "Biodiversity",
-    questions: [
-      "What biodiversity policies have shown measurable results?",
-      "What are the main drivers of biodiversity loss?",
-      "How do seagrass meadows support coastal ecosystems?",
-      "What is the Kunming\u2013Montreal Global Biodiversity Framework?",
-    ],
-  },
-  {
-    id: "food",
-    label: "Food and water",
-    questions: [
-      "How has food security changed under climate stress since 2020?",
-      "How does natural farming restore degraded land?",
-      "Which regions face the most severe water scarcity?",
-      "What are sustainable alternatives to intensive agriculture?",
-    ],
+    title: "Biodiversity loss",
+    question: "What are the main drivers of biodiversity loss?",
   },
   {
     id: "pollution",
-    label: "Pollution",
-    questions: [
-      "Summarise the key findings on plastic pollution in oceans.",
-      "What is the plastics treaty trying to achieve?",
-      "How does air pollution affect public health?",
-      "Which chemicals are being phased out worldwide?",
-    ],
+    title: "Plastic pollution",
+    question: "Summarise the key findings on plastic pollution in oceans.",
   },
   {
     id: "policy",
-    label: "Policy",
-    questions: [
-      "Summarise international agreements on marine biodiversity.",
-      "What is the Montreal Protocol and has it worked?",
-      "What did the Kigali Amendment add?",
-      "How do international environmental treaties get enforced?",
-    ],
+    title: "Treaties and policy",
+    question: "What is the Montreal Protocol and has it worked?",
   },
 ];
 
@@ -70,12 +41,6 @@ const FOLLOW_UPS = [
   "Summarise this in three bullet points.",
   "Which sources support this?",
   "What practical steps does this suggest?",
-];
-
-const SCOPE_CHIPS = [
-  { label: "All documents", value: "all" },
-  { label: "Publications only", value: "resource" },
-  { label: "Last 12 months", value: "recent" },
 ];
 
 type Source = { title: string; url: string; source: string };
@@ -210,17 +175,12 @@ export default function ChatPage() {
   const { data: session, isPending } = useSession();
   const user = session?.user ?? null;
 
-  return (
-    <div className="kb-root kb-calm">
-      <KnowledgeNav />
-      {/* Remount on login/logout so chats from one user never leak to another. */}
-      {!isPending && <ChatWorkspace key={user?.id ?? "guest"} user={user} />}
-    </div>
-  );
+  // Remount on login/logout so chats from one user never leak to another.
+  if (isPending) return <AppShell scroll={false}>{null}</AppShell>;
+  return <ChatWorkspace key={user?.id ?? "guest"} user={user} />;
 }
 
 function ChatWorkspace({ user }: { user: SessionUser | null }) {
-  const [activeScope, setActiveScope] = useState("all");
   const [firstCid] = useState(createConversationId);
   const [activeCid, setActiveCid] = useState(firstCid);
   // A summary sent here from the Summary page opens as the first messages.
@@ -230,9 +190,7 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
   }, []);
   const [saved, setSaved] = useState<ConversationSummary[]>([]);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [topicId, setTopicId] = useState(TOPICS[0].id);
 
   // Signed-in users: load their saved conversations once.
   useEffect(() => {
@@ -286,28 +244,25 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
   });
   const isLoading = status === "submitted" || status === "streaming";
 
-  const msgsEndRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Follows the stream while you are at the bottom; scrolling up releases it.
+  const { scrollRef, contentRef, isAtBottom, scrollToBottom } =
+    useStickToBottom();
 
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
     setInput("");
-    sendMessage({ text: trimmed }, { body: { scope: activeScope } });
+    sendMessage({ text: trimmed }, { body: { scope: "all" } });
   };
 
   const handleNewChat = () => {
     setActiveCid(createConversationId());
     setInput("");
-    setHistoryOpen(false);
   };
 
   const handleOpen = async (id: string) => {
     if (id === activeCid || openingId) return;
     setInput("");
-    setHistoryOpen(false);
     if (chats.has(id)) {
       setActiveCid(id);
       return;
@@ -345,235 +300,204 @@ function ChatWorkspace({ user }: { user: SessionUser | null }) {
       onSend={() => send(input)}
       onStop={stop}
       isLoading={isLoading}
-      scope={activeScope}
-      onScopeChange={setActiveScope}
       autoFocus={isEmpty}
     />
   );
 
-  return (
-    <div className="kb-chat-page">
-      <div className={`kb-chat-layout${user ? "" : " kb-chat-layout-solo"}`}>
-        {/* ── Sidebar: saved conversations (signed-in users only) ── */}
-        {user && (
+  const history = user ? (
+    <>
+      <p className="kb-side-label">Recent</p>
+      {saved.length === 0 && (
+        <p className="kb-cs-empty">Your conversations will appear here.</p>
+      )}
+      {saved.map((c) => (
+        <div
+          key={c.id}
+          className={`kb-cs-item${c.id === activeCid ? " active" : ""}${
+            c.id === openingId ? " loading" : ""
+          }`}
+        >
           <button
             type="button"
-            className="kb-chat-history-toggle"
-            aria-expanded={historyOpen}
-            onClick={() => setHistoryOpen((open) => !open)}
+            className="kb-cs-item-open"
+            onClick={() => handleOpen(c.id)}
           >
-            {historyOpen ? "Close" : "Chats"}
+            <span className="kb-cs-item-title">{truncate(c.title, 40)}</span>
+            <span className="kb-cs-item-meta">
+              {formatUpdated(c.updatedAt)}
+            </span>
           </button>
-        )}
-        {user && (
-          <aside
-            className={`kb-chat-sidebar${historyOpen ? " open" : ""}`}
-            aria-label="Conversations"
+          <button
+            type="button"
+            className="kb-cs-item-delete"
+            aria-label={`Delete "${c.title}"`}
+            title="Delete"
+            onClick={() => handleDelete(c.id)}
           >
-            <div className="kb-cs-header">
-              <span className="kb-cs-title">Conversations</span>
-              <button className="kb-cs-new" onClick={handleNewChat}>
-                + New chat
-              </button>
-            </div>
-            <div className="kb-cs-list">
-              {saved.length === 0 && (
-                <p className="kb-cs-empty">
-                  Your conversations will appear here.
+            ×
+          </button>
+        </div>
+      ))}
+    </>
+  ) : null;
+
+  return (
+    <AppShell history={history} onNewChat={handleNewChat} scroll={false}>
+      <div className="kb-chat-page">
+        <div className="kb-chat-layout kb-chat-layout-solo">
+          {/* ── Main chat area ── */}
+          <div className="kb-chat-main">
+            {isEmpty ? (
+              <div className="kb-chat-hero">
+                <h1 className="kb-chat-hero-title">
+                  {firstName ? (
+                    <span className="kb-hero-hi">
+                      Hi <span>{firstName}</span>
+                    </span>
+                  ) : null}
+                  What do you want to explore?
+                </h1>
+                <p className="kb-chat-hero-lede">
+                  Answers come from a library of 10,000+ environmental
+                  publications, stories and speeches, with sources cited.
                 </p>
-              )}
-              {saved.map((c) => (
-                <div
-                  key={c.id}
-                  className={`kb-cs-item${c.id === activeCid ? " active" : ""}${
-                    c.id === openingId ? " loading" : ""
-                  }`}
-                >
+                <div className="kb-start-pills">
+                  {START_CARDS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="kb-start-pill"
+                      title={c.question}
+                      onClick={() => send(c.question)}
+                    >
+                      {c.title}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="kb-chat-hero-composer">{composer}</div>
+                {!user && (
+                  <p className="kb-chat-hero-note">
+                    You&apos;re chatting as a guest, so this chat won&apos;t be
+                    saved. <Link href="/login">Log in</Link> or{" "}
+                    <Link href="/signup">sign up</Link> to keep your history.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="kb-chat-top-bar">
+                  <span className="kb-live-dot" />
+                  <span className="kb-chat-top-title">
+                    {truncate(getMessageText(messages[0]), 60)}
+                  </span>
+                  {!user && (
+                    <Link href="/login" className="kb-chat-top-ctx">
+                      Log in to save this chat
+                    </Link>
+                  )}
                   <button
-                    type="button"
-                    className="kb-cs-item-open"
-                    onClick={() => handleOpen(c.id)}
+                    className={`kb-chat-top-clear${user ? " push" : ""}`}
+                    onClick={handleNewChat}
                   >
-                    <span className="kb-cs-item-title">
-                      {truncate(c.title, 40)}
-                    </span>
-                    <span className="kb-cs-item-meta">
-                      {formatUpdated(c.updatedAt)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="kb-cs-item-delete"
-                    aria-label={`Delete "${c.title}"`}
-                    title="Delete"
-                    onClick={() => handleDelete(c.id)}
-                  >
-                    ×
+                    New chat
                   </button>
                 </div>
-              ))}
-            </div>
-          </aside>
-        )}
 
-        {/* ── Main chat area ── */}
-        <div className="kb-chat-main">
-          {isEmpty ? (
-            <div className="kb-chat-hero">
-              <h1 className="kb-chat-hero-title">
-                {firstName ? (
-                  <>
-                    Hi <span>{firstName}</span>.{" "}
-                  </>
-                ) : null}
-                What do you want to explore?
-              </h1>
-              <p className="kb-chat-hero-lede">
-                Answers come from a library of 10,000+ environmental
-                publications, stories and speeches, with sources cited.
-              </p>
-              <div className="kb-chat-hero-composer">{composer}</div>
-              <div className="kb-topics" role="tablist" aria-label="Topics">
-                {TOPICS.map((t) => (
-                  <button
-                    key={t.id}
-                    id={`topic-${t.id}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={topicId === t.id}
-                    aria-controls="topic-panel"
-                    tabIndex={topicId === t.id ? 0 : -1}
-                    className={`kb-topic${topicId === t.id ? " on" : ""}`}
-                    onClick={() => setTopicId(t.id)}
-                    onKeyDown={(e) => {
-                      const step =
-                        e.key === "ArrowRight"
-                          ? 1
-                          : e.key === "ArrowLeft"
-                          ? -1
-                          : 0;
-                      if (!step) return;
-                      e.preventDefault();
-                      const i = TOPICS.findIndex((x) => x.id === t.id);
-                      const next =
-                        TOPICS[(i + step + TOPICS.length) % TOPICS.length];
-                      setTopicId(next.id);
-                      document.getElementById(`topic-${next.id}`)?.focus();
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <div
-                id="topic-panel"
-                role="tabpanel"
-                aria-labelledby={`topic-${topicId}`}
-                className="kb-tiles"
-                key={topicId}
-              >
-                {(
-                  TOPICS.find((t) => t.id === topicId) ?? TOPICS[0]
-                ).questions.map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    className="kb-tile"
-                    onClick={() => send(q)}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-              {!user && (
-                <p className="kb-chat-hero-note">
-                  You&apos;re chatting as a guest, so this chat won&apos;t be
-                  saved. <Link href="/login">Log in</Link> or{" "}
-                  <Link href="/signup">sign up</Link> to keep your history.
-                </p>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="kb-chat-top-bar">
-                <span className="kb-live-dot" />
-                <span className="kb-chat-top-title">
-                  {truncate(getMessageText(messages[0]), 60)}
-                </span>
-                {!user && (
-                  <Link href="/login" className="kb-chat-top-ctx">
-                    Log in to save this chat
-                  </Link>
-                )}
-                <button
-                  className={`kb-chat-top-clear${user ? " push" : ""}`}
-                  onClick={handleNewChat}
-                >
-                  New chat
-                </button>
-              </div>
-
-              <div
-                className="kb-chat-msgs"
-                role="log"
-                aria-live="polite"
-                aria-label="Conversation"
-              >
-                {messages.map((msg, i) => (
-                  <ChatMessage
-                    key={msg.id ?? i}
-                    message={msg}
-                    isStreaming={
-                      isLoading &&
-                      msg.role === "assistant" &&
-                      i === messages.length - 1
-                    }
-                  />
-                ))}
-
-                {!isLoading &&
-                  !error &&
-                  messages[messages.length - 1]?.role === "assistant" && (
+                <div className="kb-scroll-fill kb-stick">
+                  <div ref={scrollRef} className="kb-chat-scroll">
                     <div
-                      className="kb-followups"
-                      aria-label="Follow-up questions"
+                      ref={contentRef}
+                      className="kb-chat-msgs"
+                      role="log"
+                      aria-live="polite"
+                      aria-label="Conversation"
                     >
-                      {FOLLOW_UPS.map((q) => (
-                        <button key={q} type="button" onClick={() => send(q)}>
-                          {q}
-                        </button>
+                      {messages.map((msg, i) => (
+                        <ChatMessage
+                          key={msg.id ?? i}
+                          message={msg}
+                          isStreaming={
+                            isLoading &&
+                            msg.role === "assistant" &&
+                            i === messages.length - 1
+                          }
+                        />
                       ))}
+
+                      {!isLoading &&
+                        !error &&
+                        messages[messages.length - 1]?.role === "assistant" && (
+                          <div
+                            className="kb-followups"
+                            aria-label="Follow-up questions"
+                          >
+                            {FOLLOW_UPS.map((q) => (
+                              <button
+                                key={q}
+                                type="button"
+                                onClick={() => send(q)}
+                              >
+                                {q}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                      {isLoading &&
+                        messages[messages.length - 1].role === "user" && (
+                          <TypingDots />
+                        )}
+
+                      {error && !isLoading && (
+                        <div className="kb-chat-error" role="alert">
+                          <span>
+                            {error.message ||
+                              "Something went wrong. Please try again."}
+                          </span>
+                          <button
+                            className="kb-chat-error-retry"
+                            onClick={() => regenerate()}
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                {isLoading && messages[messages.length - 1].role === "user" && (
-                  <TypingDots />
-                )}
-
-                {error && !isLoading && (
-                  <div className="kb-chat-error" role="alert">
-                    <span>
-                      {error.message ||
-                        "Something went wrong. Please try again."}
-                    </span>
-                    <button
-                      className="kb-chat-error-retry"
-                      onClick={() => regenerate()}
-                    >
-                      Retry
-                    </button>
                   </div>
-                )}
+                  <button
+                    type="button"
+                    className="kb-scroll-down"
+                    data-hidden={isAtBottom}
+                    tabIndex={isAtBottom ? -1 : 0}
+                    aria-label="Scroll to latest message"
+                    onClick={() => scrollToBottom()}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M8 3v10m0 0 4-4m-4 4L4 9"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
 
-                <div ref={msgsEndRef} />
-              </div>
-
-              <div className="kb-chat-input-dock">{composer}</div>
-            </>
-          )}
+                <div className="kb-chat-input-dock">{composer}</div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -583,8 +507,6 @@ function Composer({
   onSend,
   onStop,
   isLoading,
-  scope,
-  onScopeChange,
   autoFocus,
 }: {
   value: string;
@@ -592,71 +514,89 @@ function Composer({
   onSend: () => void;
   onStop: () => void;
   isLoading: boolean;
-  scope: string;
-  onScopeChange: (value: string) => void;
   autoFocus: boolean;
 }) {
   const canSend = value.trim().length > 0 && !isLoading;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow with the text up to a cap; shrink back once the message is sent.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [value]);
 
   return (
-    <div className="kb-chat-input-card">
+    <div
+      className={`kb-chat-input-card${isLoading ? " busy" : ""}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) textareaRef.current?.focus();
+      }}
+    >
       <textarea
+        ref={textareaRef}
         className="kb-chat-textarea"
         placeholder="Ask about climate, biodiversity, policy…"
         aria-label="Message"
         value={value}
         rows={1}
         autoFocus={autoFocus}
-        onChange={(e) => {
-          onChange(e.target.value);
-          e.target.style.height = "auto";
-          e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
-        }}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             if (canSend) onSend();
           }
         }}
-        disabled={isLoading}
       />
       <div className="kb-chat-input-bottom">
-        <select
-          className="kb-chat-scope-select"
-          aria-label="Search scope"
-          value={scope}
-          onChange={(e) => onScopeChange(e.target.value)}
-        >
-          {SCOPE_CHIPS.map(({ label, value: v }) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <div style={{ flex: 1 }} />
+        <span className="kb-chat-hint" aria-hidden="true">
+          {isLoading ? (
+            "Writing an answer…"
+          ) : (
+            <>
+              <kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> for
+              a new line
+            </>
+          )}
+        </span>
         {isLoading ? (
           <button
-            className="kb-chat-send"
+            type="button"
+            className="kb-chat-send stop"
             onClick={onStop}
-            title="Stop"
             aria-label="Stop generating"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <rect x="3" y="3" width="8" height="8" rx="1.5" fill="#fff" />
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <rect
+                x="1"
+                y="1"
+                width="10"
+                height="10"
+                rx="2"
+                fill="currentColor"
+              />
             </svg>
           </button>
         ) : (
           <button
+            type="button"
             className="kb-chat-send"
             onClick={onSend}
-            title="Send"
             aria-label="Send message"
             disabled={!canSend}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
               <path
-                d="M2 7h10M8 3l4 4-4 4"
-                stroke="#fff"
+                d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"
+                stroke="currentColor"
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"

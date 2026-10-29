@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -36,11 +37,15 @@ export default function AuthForm({ mode }: { mode: Mode }) {
 
   return (
     <div className="kb-auth-card">
-      <Link href="/chat" className="kb-nav-logo kb-auth-logo">
-        <span className="kb-nav-mark">✳</span>
-        <span className="kb-nav-name">
-          Eco<span>Buddy</span>
-        </span>
+      <Link href="/chat" className="kb-brand kb-auth-logo">
+        <Image
+          src="/ecobuddy-logo-icon.png"
+          alt=""
+          width={28}
+          height={28}
+          className="kb-logo"
+        />
+        EcoBuddy
       </Link>
       <h1 className="kb-auth-title">
         {isSignup ? "Create your account" : "Welcome back"}

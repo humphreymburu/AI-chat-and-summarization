@@ -8,7 +8,7 @@ import type {
   SummaryResponse,
   StructuredSummary,
 } from "@unep/bundles/search/results/summary-types";
-import KnowledgeNav from "@unep/components/KnowledgeNav";
+import AppShell from "@unep/components/AppShell";
 import { saveChatSeed } from "@unep/lib/chat-seed";
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -318,8 +318,7 @@ export default function SummaryPage() {
 
   return (
     <>
-      <div className="kb-root kb-calm">
-        <KnowledgeNav />
+      <AppShell>
 
         <div className="kb-wrap">
           {/* ── Hero + input — single centred column ── */}
@@ -470,7 +469,7 @@ export default function SummaryPage() {
             </div>
           )}
         </div>
-      </div>
+      </AppShell>
     </>
   );
 }
