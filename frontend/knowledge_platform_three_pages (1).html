@@ -1,0 +1,535 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:#f0ede6;color:#0f0f0f;font-size:14px;}
+
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:56px;background:#f0ede6;border-bottom:0.5px solid rgba(0,0,0,0.1);}
+.nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;}
+.nav-mark{font-size:20px;line-height:1;}
+.nav-name{font-family:'DM Serif Display',serif;font-size:16px;letter-spacing:-0.3px;}
+.nav-name span{color:#888;font-style:italic;}
+.nav-links{display:flex;gap:24px;}
+.nav-link{font-size:13px;color:#0f0f0f;opacity:0.45;text-decoration:none;font-weight:400;cursor:pointer;background:none;border:none;font-family:'DM Sans',sans-serif;padding:0;}
+.nav-link:hover{opacity:1;}
+.nav-link.active{opacity:1;font-weight:500;}
+.nav-right{display:flex;align-items:center;gap:12px;}
+.nav-pill{border:0.5px solid rgba(0,0,0,0.25);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:500;background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0f0f0f;}
+.nav-pill.solid{background:#0f0f0f;color:#f0ede6;border-color:#0f0f0f;}
+
+.page{display:none;}
+.page.active{display:block;}
+
+/* ── SHARED ── */
+.section-label{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#aaa;margin-bottom:6px;}
+.page-wrap{padding:52px 40px 64px;}
+.two-col{display:grid;grid-template-columns:1.1fr 0.9fr;gap:48px;align-items:start;}
+.eyebrow{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#999;margin-bottom:16px;}
+.page-h1{font-family:'DM Serif Display',serif;font-size:52px;line-height:1.05;letter-spacing:-1.5px;margin-bottom:14px;}
+.page-h1 em{font-style:italic;color:#888;}
+.page-sub{font-size:13px;color:#777;font-weight:300;line-height:1.7;margin-bottom:32px;max-width:360px;}
+
+.illus-scene{background:#e4e1da;border-radius:16px;height:200px;position:relative;overflow:hidden;margin-bottom:16px;}
+.ga{position:absolute;left:18px;bottom:0;width:40px;height:140px;}
+.gb{position:absolute;left:18px;bottom:0;width:40px;height:70px;background:#0f0f0f;}
+.gc{position:absolute;left:60px;bottom:0;width:28px;height:100px;}
+.gd{position:absolute;left:60px;bottom:100px;width:28px;height:28px;background:#f5c542;border-radius:50%;}
+.ge{position:absolute;left:92px;bottom:0;width:0;height:0;border-left:22px solid transparent;border-right:22px solid transparent;}
+.gf{position:absolute;right:24px;top:28px;width:28px;height:28px;background:#f5c542;border-radius:50%;}
+.gg{position:absolute;right:18px;bottom:0;width:48px;height:72px;background:#f0ede6;border-radius:8px 8px 0 0;opacity:0.55;}
+
+.stat-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat-box{background:#fff;border-radius:12px;padding:14px 16px;border:0.5px solid rgba(0,0,0,0.08);}
+.stat-num{font-family:'DM Serif Display',serif;font-size:26px;color:#0f0f0f;line-height:1;}
+.stat-lbl{font-size:11px;color:#bbb;margin-top:4px;font-weight:300;}
+
+/* ── KEYWORD ── */
+.kw-box{background:#fff;border-radius:16px;border:0.5px solid rgba(0,0,0,0.1);overflow:hidden;margin-bottom:16px;}
+.kw-top{display:flex;align-items:center;gap:10px;padding:14px 18px;}
+.kw-input{flex:1;border:none;outline:none;font-size:14px;font-family:'DM Sans',sans-serif;background:transparent;color:#0f0f0f;}
+.kw-input::placeholder{color:#bbb;}
+.search-btn{background:#0f0f0f;color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+.search-btn:hover{background:#333;}
+.kw-divider{height:0.5px;background:#f0ede6;margin:0 18px;}
+.kw-filters{padding:12px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.filter-label{font-size:11px;color:#bbb;margin-right:4px;}
+.ftag{font-size:11px;color:#888;border:0.5px solid #e0ddd7;border-radius:12px;padding:4px 12px;cursor:pointer;background:#faf9f7;font-family:'DM Sans',sans-serif;}
+.ftag.on{background:#0f0f0f;color:#f0ede6;border-color:#0f0f0f;}
+.ftag:hover:not(.on){border-color:#0f0f0f;color:#0f0f0f;}
+.kw-meta{padding:10px 18px 14px;display:flex;justify-content:space-between;align-items:center;border-top:0.5px solid #f0ede6;}
+.kw-meta-left{font-size:11px;color:#bbb;}
+.sort-select{border:0.5px solid #e0ddd7;border-radius:8px;padding:4px 10px;font-size:11px;font-family:'DM Sans',sans-serif;background:#faf9f7;color:#888;outline:none;}
+
+.results-list{display:flex;flex-direction:column;gap:0;border:0.5px solid rgba(0,0,0,0.09);border-radius:16px;overflow:hidden;background:#fff;}
+.result-row{padding:18px 22px;border-bottom:0.5px solid #f5f3ef;display:flex;gap:16px;align-items:flex-start;cursor:pointer;transition:background .15s;}
+.result-row:last-child{border-bottom:none;}
+.result-row:hover{background:#faf9f7;}
+.rr-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:6px;}
+.rr-body{flex:1;}
+.rr-type{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#bbb;margin-bottom:5px;}
+.rr-title{font-size:13px;font-weight:500;color:#0f0f0f;line-height:1.4;margin-bottom:4px;}
+.rr-snippet{font-size:12px;color:#999;line-height:1.5;font-weight:300;}
+.rr-date{font-size:11px;color:#ccc;margin-top:6px;}
+.rr-arrow{font-size:16px;color:#ddd;flex-shrink:0;align-self:center;}
+
+.pagination{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:0 4px;}
+.pag-info{font-size:12px;color:#bbb;}
+.pag-btns{display:flex;gap:6px;}
+.pag-btn{border:0.5px solid rgba(0,0,0,0.15);border-radius:8px;padding:6px 14px;font-size:12px;background:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;color:#0f0f0f;}
+.pag-btn.active{background:#0f0f0f;color:#f0ede6;border-color:#0f0f0f;}
+
+/* ── SUMMARY ── */
+.sum-box{background:#fff;border-radius:16px;border:0.5px solid rgba(0,0,0,0.1);overflow:hidden;margin-bottom:16px;}
+.sum-top{display:flex;align-items:center;gap:10px;padding:16px 18px;}
+.sum-spark{font-size:16px;color:#0f0f0f;}
+.sum-input{flex:1;border:none;outline:none;font-size:14px;font-family:'DM Sans',sans-serif;background:transparent;color:#0f0f0f;}
+.sum-input::placeholder{color:#bbb;}
+.sum-chips-row{padding:12px 18px;border-top:0.5px solid #f5f3ef;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.chips-label{font-size:11px;color:#bbb;margin-right:2px;}
+.schip{font-size:11px;border:0.5px solid #e0ddd7;border-radius:12px;padding:4px 12px;cursor:pointer;background:#faf9f7;color:#888;font-family:'DM Sans',sans-serif;}
+.schip.on{background:#0f0f0f;color:#f0ede6;border-color:#0f0f0f;}
+.schip:hover:not(.on){border-color:#0f0f0f;color:#0f0f0f;}
+.sum-footer-row{padding:10px 18px;border-top:0.5px solid #f5f3ef;display:flex;justify-content:space-between;align-items:center;}
+.sum-hint{font-size:11px;color:#bbb;font-style:italic;}
+.sum-credit{font-size:11px;color:#ddd;}
+
+.sum-output{background:#0f0f0f;border-radius:16px;padding:24px 26px;margin-bottom:16px;}
+.sum-out-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#444;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.sum-out-dot{width:6px;height:6px;border-radius:50%;background:#1a8c52;}
+.sum-out-text{font-size:13px;color:#888;line-height:1.8;font-weight:300;}
+.sum-out-text b{color:#f0ede6;font-weight:500;}
+.sum-sources{margin-top:16px;padding-top:14px;border-top:0.5px solid #1a1a1a;}
+.sum-sources-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#333;margin-bottom:10px;}
+.source-pills{display:flex;flex-wrap:wrap;gap:6px;}
+.source-pill{font-size:11px;color:#555;border:0.5px solid #222;border-radius:10px;padding:4px 10px;}
+.source-pill:hover{color:#f0ede6;border-color:#555;cursor:pointer;}
+.sum-actions{display:flex;gap:8px;margin-top:16px;}
+.sum-act{border:0.5px solid #222;border-radius:16px;padding:6px 14px;font-size:11px;color:#666;background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.sum-act:hover{border-color:#666;color:#f0ede6;}
+
+.sum-suggest{margin-bottom:0;}
+.sum-suggest-label{font-size:11px;color:#999;margin-bottom:10px;}
+.suggest-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.suggest-card{background:#fff;border:0.5px solid rgba(0,0,0,0.09);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .15s;}
+.suggest-card:hover{border-color:rgba(0,0,0,0.25);}
+.suggest-card p{font-size:12px;color:#666;line-height:1.5;font-weight:300;font-style:italic;}
+.suggest-card span{font-size:10px;color:#ccc;margin-top:6px;display:block;}
+
+/* ── CHAT ── */
+.chat-layout{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;}
+.chat-sidebar{background:#fff;border-radius:16px;border:0.5px solid rgba(0,0,0,0.09);overflow:hidden;}
+.cs-header{padding:14px 16px;border-bottom:0.5px solid #f5f3ef;display:flex;justify-content:space-between;align-items:center;}
+.cs-title{font-size:12px;font-weight:500;color:#0f0f0f;}
+.cs-new{font-size:11px;color:#bbb;cursor:pointer;border:0.5px solid #e0ddd7;border-radius:10px;padding:3px 10px;background:transparent;font-family:'DM Sans',sans-serif;}
+.cs-new:hover{border-color:#0f0f0f;color:#0f0f0f;}
+.cs-list{padding:8px;}
+.cs-item{padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:2px;}
+.cs-item:hover{background:#f5f3ef;}
+.cs-item.active{background:#f0ede6;}
+.cs-item-title{font-size:12px;color:#0f0f0f;font-weight:400;line-height:1.3;}
+.cs-item-meta{font-size:10px;color:#bbb;margin-top:3px;}
+.cs-divider{height:0.5px;background:#f5f3ef;margin:6px 12px;}
+.cs-scope{padding:12px 16px;border-top:0.5px solid #f5f3ef;}
+.cs-scope-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#bbb;margin-bottom:8px;}
+.cs-chip{font-size:11px;color:#888;border:0.5px solid #e0ddd7;border-radius:10px;padding:4px 10px;display:block;margin-bottom:5px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.cs-chip.on{background:#0f0f0f;color:#f0ede6;border-color:#0f0f0f;}
+
+.chat-main{background:#fff;border-radius:16px;border:0.5px solid rgba(0,0,0,0.09);overflow:hidden;display:flex;flex-direction:column;}
+.chat-top-bar{padding:13px 18px;border-bottom:0.5px solid #f5f3ef;display:flex;align-items:center;gap:8px;}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#1a8c52;}
+.chat-top-title{font-size:12px;font-weight:500;color:#0f0f0f;}
+.chat-top-ctx{font-size:11px;color:#bbb;margin-left:auto;}
+.chat-top-clear{font-size:11px;color:#bbb;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;}
+.chat-top-clear:hover{color:#0f0f0f;}
+.chat-msgs{padding:20px 18px;display:flex;flex-direction:column;gap:14px;min-height:260px;}
+.cmsg{display:flex;gap:10px;align-items:flex-start;}
+.cav{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;}
+.cav.ai{background:#0f0f0f;color:#f0ede6;font-size:13px;}
+.cav.you{background:#e4e1da;color:#666;}
+.cbub{border-radius:0 12px 12px 12px;padding:10px 14px;font-size:12px;line-height:1.65;font-weight:300;max-width:420px;}
+.cbub.ai{background:#f7f5f0;color:#333;}
+.cbub.you{background:#0f0f0f;color:#e4e1da;border-radius:12px 0 12px 12px;margin-left:auto;}
+.cmsg.you{flex-direction:row-reverse;}
+.cbub b{font-weight:500;}
+.cbub.ai b{color:#0f0f0f;}
+.cbub.you b{color:#fff;}
+.cite-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;}
+.cite{font-size:10px;color:#aaa;border:0.5px solid #e8e5df;border-radius:8px;padding:2px 8px;cursor:pointer;}
+.cite:hover{color:#0f0f0f;border-color:#0f0f0f;}
+.chat-suggestions{padding:0 18px 14px;display:flex;gap:6px;flex-wrap:wrap;}
+.csugg{font-size:11px;color:#888;border:0.5px solid #e0ddd7;border-radius:12px;padding:5px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;background:transparent;}
+.csugg:hover{border-color:#0f0f0f;color:#0f0f0f;}
+.chat-input-bar{border-top:0.5px solid #f5f3ef;padding:12px 16px;display:flex;align-items:center;gap:8px;}
+.chat-inp{flex:1;border:none;outline:none;font-size:13px;font-family:'DM Sans',sans-serif;background:transparent;color:#0f0f0f;}
+.chat-inp::placeholder{color:#ccc;}
+.chat-attach{font-size:14px;color:#ccc;cursor:pointer;}
+.chat-send{width:30px;height:30px;background:#0f0f0f;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+/* ── FOOTER ── */
+.footer{background:#0f0f0f;padding:36px 40px;display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px;}
+.ft-brand{font-family:'DM Serif Display',serif;font-size:18px;color:#fff;margin-bottom:10px;}
+.ft-brand span{color:#555;font-style:italic;}
+.ft-tag{font-size:12px;color:#444;line-height:1.7;font-weight:300;}
+.ft-col h5{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:#333;margin-bottom:12px;}
+.ft-col ul{list-style:none;display:flex;flex-direction:column;gap:8px;}
+.ft-col ul li a{font-size:12px;color:#555;text-decoration:none;font-weight:300;}
+.ft-col ul li a:hover{color:#fff;}
+.footer-bar{background:#080808;padding:12px 40px;display:flex;justify-content:space-between;}
+.footer-bar span{font-size:11px;color:#333;}
+
+.page-divider{height:0.5px;background:rgba(0,0,0,0.07);margin:0 40px;}
+.page-section-title{padding:36px 40px 0;display:flex;align-items:center;gap:16px;}
+.pst-num{font-family:'DM Serif Display',serif;font-size:32px;color:#e4e1da;line-height:1;}
+.pst-label{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#bbb;}
+</style>
+
+<nav>
+  <div class="nav-logo">
+    <span class="nav-mark">✳</span>
+    <span class="nav-name">Knowledge<span>Base</span></span>
+  </div>
+  <div class="nav-links">
+    <button class="nav-link active" onclick="scrollTo('sec-keyword')">Keyword Search</button>
+    <button class="nav-link" onclick="scrollTo('sec-summary')">AI Summary</button>
+    <button class="nav-link" onclick="scrollTo('sec-chat')">Chat</button>
+    <button class="nav-link" onclick="scrollTo('sec-chat')" style="opacity:0.35;">Library</button>
+    <button class="nav-link" onclick="scrollTo('sec-chat')" style="opacity:0.35;">Reports</button>
+  </div>
+  <div class="nav-right">
+    <button class="nav-pill">Sign in</button>
+    <button class="nav-pill solid">Get access →</button>
+  </div>
+</nav>
+
+<!-- ══ SECTION 1: KEYWORD ══ -->
+<div id="sec-keyword" class="page-wrap">
+  <div class="two-col">
+    <div>
+      <div class="eyebrow">01 — Keyword Search</div>
+      <h1 class="page-h1">Find exactly<br><em>what you need.</em></h1>
+      <p class="page-sub">Search across 10,000+ publications, speeches, press releases, and reports. Filter by type, date, and region to surface precisely the right document.</p>
+
+      <div class="kw-box">
+        <div class="kw-top">
+          <i class="ti ti-search" style="font-size:15px;color:#bbb;" aria-hidden="true"></i>
+          <input class="kw-input" placeholder="e.g. climate policy Europe 2025…" />
+          <button class="search-btn">Search</button>
+        </div>
+        <div class="kw-divider"></div>
+        <div class="kw-filters">
+          <span class="filter-label">Type:</span>
+          <button class="ftag on" onclick="this.classList.toggle('on')">All</button>
+          <button class="ftag" onclick="this.classList.toggle('on')">Publications</button>
+          <button class="ftag" onclick="this.classList.toggle('on')">Speeches</button>
+          <button class="ftag" onclick="this.classList.toggle('on')">Press Releases</button>
+          <button class="ftag" onclick="this.classList.toggle('on')">Stories</button>
+          <button class="ftag" onclick="this.classList.toggle('on')">Events</button>
+          <button class="ftag" onclick="this.classList.toggle('on')">Videos</button>
+        </div>
+        <div class="kw-meta">
+          <span class="kw-meta-left">Showing 1–5 of 10,000 records</span>
+          <select class="sort-select">
+            <option>Relevance</option>
+            <option>Newest first</option>
+            <option>Oldest first</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="results-list">
+        <div class="result-row">
+          <div class="rr-dot" style="background:#1a2ccc;margin-top:6px;"></div>
+          <div class="rr-body">
+            <div class="rr-type">Publication</div>
+            <div class="rr-title">Biodiversity Loss in European Wetlands Under Climate Pressure</div>
+            <div class="rr-snippet">Rising temperatures are disrupting ecosystems across Northern and Central Europe, with knock-on effects on water systems and food security.</div>
+            <div class="rr-date">Mar 26, 2026</div>
+          </div>
+          <span class="rr-arrow">→</span>
+        </div>
+        <div class="result-row">
+          <div class="rr-dot" style="background:#e8394e;margin-top:6px;"></div>
+          <div class="rr-body">
+            <div class="rr-type">Press Release</div>
+            <div class="rr-title">New Coastal Adaptation Framework for European Communities</div>
+            <div class="rr-snippet">Governments commit to updated policies addressing sea level rise and extreme weather events along the Atlantic coast.</div>
+            <div class="rr-date">Feb 14, 2026</div>
+          </div>
+          <span class="rr-arrow">→</span>
+        </div>
+        <div class="result-row">
+          <div class="rr-dot" style="background:#1a8c52;margin-top:6px;"></div>
+          <div class="rr-body">
+            <div class="rr-type">Story</div>
+            <div class="rr-title">Farmers on the Frontlines: Agriculture Adapts Across Europe</div>
+            <div class="rr-snippet">Personal accounts and data from rural communities managing erratic rainfall, heat stress, and shifting growing seasons.</div>
+            <div class="rr-date">Jan 08, 2026</div>
+          </div>
+          <span class="rr-arrow">→</span>
+        </div>
+        <div class="result-row">
+          <div class="rr-dot" style="background:#f5c542;margin-top:6px;"></div>
+          <div class="rr-body">
+            <div class="rr-type">Speech</div>
+            <div class="rr-title">Statement on the 2030 European Climate Law Progress</div>
+            <div class="rr-snippet">A review of milestones reached and gaps remaining in the EU's flagship legislation for achieving carbon neutrality.</div>
+            <div class="rr-date">Dec 10, 2025</div>
+          </div>
+          <span class="rr-arrow">→</span>
+        </div>
+        <div class="result-row">
+          <div class="rr-dot" style="background:#1a2ccc;margin-top:6px;"></div>
+          <div class="rr-body">
+            <div class="rr-type">Publication</div>
+            <div class="rr-title">Mediterranean Drought Risk: A 2025 Assessment</div>
+            <div class="rr-snippet">Comprehensive modelling of long-term drought cycles across southern Europe with projections extending to 2050.</div>
+            <div class="rr-date">Nov 03, 2025</div>
+          </div>
+          <span class="rr-arrow">→</span>
+        </div>
+      </div>
+
+      <div class="pagination">
+        <span class="pag-info">Page 1 of 2,000</span>
+        <div class="pag-btns">
+          <button class="pag-btn active">1</button>
+          <button class="pag-btn">2</button>
+          <button class="pag-btn">3</button>
+          <button class="pag-btn">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="illus-scene">
+        <div class="ga" style="background:#1a2ccc;"></div>
+        <div class="gb"></div>
+        <div class="gc" style="background:#e8394e;"></div>
+        <div class="gd"></div>
+        <div class="ge" style="border-bottom-color:#1a8c52;"></div>
+        <div class="gf"></div>
+        <div class="gg"></div>
+      </div>
+      <div class="stat-strip">
+        <div class="stat-box"><div class="stat-num">10k+</div><div class="stat-lbl">Documents indexed</div></div>
+        <div class="stat-box"><div class="stat-num">180+</div><div class="stat-lbl">Countries covered</div></div>
+        <div class="stat-box"><div class="stat-num">9</div><div class="stat-lbl">Document types</div></div>
+        <div class="stat-box"><div class="stat-num">Daily</div><div class="stat-lbl">Updated index</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-divider"></div>
+
+<!-- ══ SECTION 2: AI SUMMARY ══ -->
+<div id="sec-summary" class="page-wrap">
+  <div class="two-col">
+    <div>
+      <div class="eyebrow">02 — AI Summary</div>
+      <h1 class="page-h1">Understand,<br><em>not just find.</em></h1>
+      <p class="page-sub">Ask a research question in plain language. The AI reads hundreds of matching documents and returns a concise, cited answer — in seconds.</p>
+
+      <div class="sum-box">
+        <div class="sum-top">
+          <span class="sum-spark">✦</span>
+          <input class="sum-input" placeholder="What are the main drivers of biodiversity loss in Europe?" />
+          <button class="search-btn">Summarise</button>
+        </div>
+        <div class="sum-chips-row">
+          <span class="chips-label">Scope:</span>
+          <button class="schip on" onclick="this.classList.toggle('on')">All documents</button>
+          <button class="schip" onclick="this.classList.toggle('on')">Publications only</button>
+          <button class="schip" onclick="this.classList.toggle('on')">Last 12 months</button>
+          <button class="schip" onclick="this.classList.toggle('on')">Peer-reviewed</button>
+          <button class="schip" onclick="this.classList.toggle('on')">Policy docs</button>
+        </div>
+        <div class="sum-footer-row">
+          <span class="sum-hint">AI reads matching docs and returns a cited synthesis.</span>
+          <span class="sum-credit">Powered by Claude</span>
+        </div>
+      </div>
+
+      <div class="sum-output">
+        <div class="sum-out-label">
+          <div class="sum-out-dot"></div>
+          AI Summary — 47 documents analysed
+        </div>
+        <div class="sum-out-text">
+          Climate change in Europe is driving biodiversity loss through <b>three primary mechanisms</b>: habitat fragmentation from land-use change, rising average temperatures displacing native species ranges, and increasing frequency of extreme weather events. <b>Northern regions</b> show the fastest warming rates while <b>Mediterranean coastlines</b> face the most severe drought and desertification risk. Key policy responses include the EU Biodiversity Strategy 2030, national habitat restoration laws introduced across 11 member states, and the Emergency Heat Protocols activated in 2025 across six nations.
+        </div>
+        <div class="sum-sources">
+          <div class="sum-sources-label">Sources cited</div>
+          <div class="source-pills">
+            <span class="source-pill">Wetlands Report 2026</span>
+            <span class="source-pill">Mediterranean Assessment 2025</span>
+            <span class="source-pill">EU Biodiversity Strategy</span>
+            <span class="source-pill">Heat Protocol 2025</span>
+            <span class="source-pill">+43 more</span>
+          </div>
+        </div>
+        <div class="sum-actions">
+          <button class="sum-act">Expand full summary</button>
+          <button class="sum-act">Export as PDF</button>
+          <button class="sum-act">Ask follow-up</button>
+          <button class="sum-act">View all sources</button>
+        </div>
+      </div>
+
+      <div class="sum-suggest">
+        <div class="sum-suggest-label">Try a sample question</div>
+        <div class="suggest-grid">
+          <div class="suggest-card"><p>"What adaptation policies have been most effective in coastal Europe?"</p><span>23 matching documents</span></div>
+          <div class="suggest-card"><p>"How has food security changed under climate stress since 2020?"</p><span>61 matching documents</span></div>
+          <div class="suggest-card"><p>"Summarise international agreements on marine biodiversity."</p><span>38 matching documents</span></div>
+          <div class="suggest-card"><p>"What are projected carbon emissions trends for G20 nations?"</p><span>44 matching documents</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="illus-scene">
+        <div class="ga" style="background:#e8394e;"></div>
+        <div class="gb" style="background:#1a2ccc;height:50px;"></div>
+        <div class="gc" style="background:#0f0f0f;height:80px;"></div>
+        <div class="gd" style="background:#e8394e;left:90px;bottom:80px;"></div>
+        <div class="ge" style="border-bottom-color:#f5c542;left:118px;"></div>
+        <div class="gf" style="background:#1a8c52;"></div>
+        <div class="gg"></div>
+      </div>
+      <div class="stat-strip">
+        <div class="stat-box"><div class="stat-num">~3s</div><div class="stat-lbl">Average summary time</div></div>
+        <div class="stat-box"><div class="stat-num">100%</div><div class="stat-lbl">Source cited answers</div></div>
+        <div class="stat-box"><div class="stat-num">500+</div><div class="stat-lbl">Docs read per query</div></div>
+        <div class="stat-box"><div class="stat-num">24</div><div class="stat-lbl">Languages supported</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-divider"></div>
+
+<!-- ══ SECTION 3: CHAT ══ -->
+<div id="sec-chat" class="page-wrap">
+  <div class="eyebrow" style="padding-bottom:0;">03 — AI Research Chat</div>
+  <h1 class="page-h1" style="margin-bottom:10px;">Ask anything,<br><em>go deeper.</em></h1>
+  <p class="page-sub" style="margin-bottom:28px;">Have a multi-turn conversation with an AI that has read the entire library. It remembers context, cites sources, and helps you follow threads across documents.</p>
+
+  <div class="chat-layout">
+    <div class="chat-sidebar">
+      <div class="cs-header">
+        <span class="cs-title">Conversations</span>
+        <button class="cs-new">+ New</button>
+      </div>
+      <div class="cs-list">
+        <div class="cs-item active">
+          <div class="cs-item-title">European drought risk & policy</div>
+          <div class="cs-item-meta">Today · 4 messages</div>
+        </div>
+        <div class="cs-item">
+          <div class="cs-item-title">Marine biodiversity treaties</div>
+          <div class="cs-item-meta">Yesterday · 7 messages</div>
+        </div>
+        <div class="cs-divider"></div>
+        <div class="cs-item">
+          <div class="cs-item-title">G20 emissions pledges 2025</div>
+          <div class="cs-item-meta">Jun 28 · 3 messages</div>
+        </div>
+        <div class="cs-item">
+          <div class="cs-item-title">Food security Africa overview</div>
+          <div class="cs-item-meta">Jun 25 · 9 messages</div>
+        </div>
+      </div>
+      <div class="cs-scope">
+        <div class="cs-scope-label">Search scope</div>
+        <button class="cs-chip on" onclick="this.classList.toggle('on')">All documents</button>
+        <button class="cs-chip" onclick="this.classList.toggle('on')">Publications only</button>
+        <button class="cs-chip" onclick="this.classList.toggle('on')">Last 12 months</button>
+      </div>
+    </div>
+
+    <div class="chat-main">
+      <div class="chat-top-bar">
+        <div class="live-dot"></div>
+        <span class="chat-top-title">European drought risk & policy</span>
+        <span class="chat-top-ctx">10,000 docs in context</span>
+        <button class="chat-top-clear">Clear</button>
+      </div>
+      <div class="chat-msgs">
+        <div class="cmsg">
+          <div class="cav ai">✦</div>
+          <div class="cbub ai">Hello — I have access to <b>10,000+ documents</b> across the full library. Ask me anything about climate, biodiversity, policy, or any topic covered in our archive.</div>
+        </div>
+        <div class="cmsg you">
+          <div class="cav you">You</div>
+          <div class="cbub you">Which European countries face the highest long-term drought risk?</div>
+        </div>
+        <div class="cmsg">
+          <div class="cav ai">✦</div>
+          <div>
+            <div class="cbub ai">Based on the <b>2025 Mediterranean Drought Assessment</b> and three supporting reports, <b>Spain, Portugal, and Italy</b> face the highest risk — with projections worsening significantly after 2035 under current emissions trajectories. Southern France and Greece are classified high-risk from 2040 onwards.<br><br>The primary drivers are reduced winter precipitation, earlier snowmelt in Alpine catchments, and increased evapotranspiration from summer heat events.</div>
+            <div class="cite-chips">
+              <span class="cite">Mediterranean Assessment 2025</span>
+              <span class="cite">EU Climate Outlook 2024</span>
+              <span class="cite">Alpine Water Report 2025</span>
+            </div>
+          </div>
+        </div>
+        <div class="cmsg you">
+          <div class="cav you">You</div>
+          <div class="cbub you">What policy responses exist specifically for Spain?</div>
+        </div>
+        <div class="cmsg">
+          <div class="cav ai">✦</div>
+          <div>
+            <div class="cbub ai">Spain's <b>National Adaptation Plan (PNACC 2021–2030)</b> addresses drought through three pillars: water demand management, ecosystem-based adaptation in river basins, and agricultural transition subsidies. A 2024 speech by the Environment Ministry flagged implementation gaps in the Ebro and Tagus basins specifically.</div>
+            <div class="cite-chips">
+              <span class="cite">PNACC Report 2023</span>
+              <span class="cite">Ministry Speech Dec 2024</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-suggestions">
+        <button class="csugg">How does this compare to North Africa?</button>
+        <button class="csugg">What funding mechanisms exist?</button>
+        <button class="csugg">Show me the source documents</button>
+      </div>
+      <div class="chat-input-bar">
+        <i class="ti ti-paperclip chat-attach" aria-hidden="true"></i>
+        <input class="chat-inp" placeholder="Ask a follow-up question…" />
+        <button class="chat-send"><i class="ti ti-arrow-up" style="font-size:13px;color:#f0ede6;" aria-hidden="true"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <div>
+    <div class="ft-brand">Knowledge<span>Base</span></div>
+    <div class="ft-tag">Research at the speed<br>of curiosity.</div>
+  </div>
+  <div class="ft-col">
+    <h5>Navigate</h5>
+    <ul><li><a href="#">Search</a></li><li><a href="#">AI Summary</a></li><li><a href="#">Chat</a></li><li><a href="#">Library</a></li><li><a href="#">Reports</a></li></ul>
+  </div>
+  <div class="ft-col">
+    <h5>Platform</h5>
+    <ul><li><a href="#">AI assistant</a></li><li><a href="#">API access</a></li><li><a href="#">Embed search</a></li><li><a href="#">Pricing</a></li></ul>
+  </div>
+  <div class="ft-col">
+    <h5>Legal</h5>
+    <ul><li><a href="#">Privacy policy</a></li><li><a href="#">Terms of use</a></li><li><a href="#">Cookie settings</a></li><li><a href="#">Contact</a></li></ul>
+  </div>
+</div>
+<div class="footer-bar">
+  <span>© 2026 KnowledgeBase. All rights reserved.</span>
+  <span>Built for researchers, policymakers, and curious minds.</span>
+</div>
+
+<script>
+function scrollTo(id){
+  document.getElementById(id).scrollIntoView({behavior:'smooth'});
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  event.target.classList.add('active');
+}
+</script>
