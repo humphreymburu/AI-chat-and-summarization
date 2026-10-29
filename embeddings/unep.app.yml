@@ -1,0 +1,4 @@
+name: embedding
+stack: nodejs
+version: 18
+capacity: small

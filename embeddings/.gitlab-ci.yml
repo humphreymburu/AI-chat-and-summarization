@@ -1,0 +1,11 @@
+stages:
+- test
+- prebuild
+- asset_versioning
+- build
+- deploy
+
+include:
+  - project: 'unep/infra/deploykit'
+    ref: main
+    file: 'deploykit/stacks/nodejs/deploy.yaml' 
