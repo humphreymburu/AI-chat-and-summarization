@@ -21,6 +21,7 @@ Startup wiring (inside FastAPI lifespan):
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import time
 import uuid
@@ -38,6 +39,7 @@ from app.config import (
     ADMIN_TOKEN,
     CHECKPOINT_PROVIDER,
     CORS_ALLOW_ORIGINS,
+    INTERNAL_API_SECRET,
     DEFAULT_RESOURCES_SCANNED,
     DEFAULT_TOTAL_KNOWLEDGE_HUBS,
     STARTUP_EMBEDDING_CHECK,
@@ -92,6 +94,11 @@ async def lifespan(app: FastAPI):
     global summary_cache, metrics, reranker, tools
 
     logger.info("startup_begin")
+    if not INTERNAL_API_SECRET:
+        logger.warning(
+            "internal_api_secret_unset",
+            detail="Chat endpoints are open to anyone; set INTERNAL_API_SECRET in production.",
+        )
 
     # Six LLMs
     chat_llm = build_chat_llm()
@@ -243,7 +250,7 @@ def _doc_to_chat_source(doc: Any) -> Dict[str, str]:
         metadata.get("article_title")
         or metadata.get("title")
         or metadata.get("section_heading")
-        or "UNEP source"
+        or "Source"
     )
     url = metadata.get("article_url") or metadata.get("url") or metadata.get("path") or ""
     source = metadata.get("site_name") or metadata.get("source") or ""
@@ -370,10 +377,22 @@ async def _astream_chat_response(
 # FastAPI app
 # ---------------------------------------------------------------------------
 
+def _require_internal_secret(
+    x_internal_secret: Optional[str] = Header(default=None),
+) -> None:
+    """Only the Next.js app (which knows the shared secret) may call this."""
+    if not INTERNAL_API_SECRET:
+        return
+    if not x_internal_secret or not hmac.compare_digest(
+        x_internal_secret, INTERNAL_API_SECRET
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 app = FastAPI(
     title="Generative Chat",
     version="2.2",
-    description="UNEP RAG AI API (agentic LangGraph backend)",
+    description="Environmental knowledge RAG API (agentic LangGraph backend)",
     lifespan=lifespan,
 )
 
@@ -416,7 +435,7 @@ class ChatStreamRequest(BaseModel):
         return normalized
 
 
-@app.post("/chat/stream")
+@app.post("/chat/stream", dependencies=[Depends(_require_internal_secret)])
 async def chat_stream(req: ChatStreamRequest):
     """Stream chat tokens as SSE using LangGraph astream (messages mode)."""
     payload = req.model_dump()
@@ -521,7 +540,7 @@ def _ui_chunk(chunk: Dict[str, Any] | str) -> str:
     return f"data: {data}\n\n"
 
 
-@app.post("/chat/ui")
+@app.post("/chat/ui", dependencies=[Depends(_require_internal_secret)])
 async def chat_ui(req: UIChatRequest):
     payload = _ui_request_to_payload(req)
     request_id = str(uuid.uuid4())
@@ -604,7 +623,11 @@ class SearchRequest(BaseModel):
     total_knowledge_hubs: Optional[int] = None
 
 
-@app.post("/search", response_model=SummaryResponse)
+@app.post(
+    "/search",
+    response_model=SummaryResponse,
+    dependencies=[Depends(_require_internal_secret)],
+)
 async def search_endpoint(req: SearchRequest) -> SummaryResponse:
     """
     Single-turn structured search.
@@ -695,7 +718,7 @@ _NODE_PROGRESS_LABELS = {
     "plan_tools": "Checking if external tools are needed",
     "decide_hyde": "Choosing retrieval strategy",
     "generate_hyde": "Expanding query for retrieval",
-    "retrieve_documents": "Searching UNEP documents",
+    "retrieve_documents": "Searching the document library",
     "rerank_documents": "Reranking results",
     "grade_documents": "Grading relevance",
     "decide_next": "Deciding next step",
@@ -789,7 +812,7 @@ def _summarize_node_output(node: str, output: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-@app.post("/chat/events")
+@app.post("/chat/events", dependencies=[Depends(_require_internal_secret)])
 async def chat_events_endpoint(request: Request):
     if not STREAM_INTERMEDIATE_STATE:
         raise HTTPException(
@@ -811,7 +834,7 @@ async def chat_events_endpoint(request: Request):
 # /thread, /admin, /health, /metrics
 # ---------------------------------------------------------------------------
 
-@app.get("/thread/{thread_id}")
+@app.get("/thread/{thread_id}", dependencies=[Depends(_require_internal_secret)])
 def get_thread_state(thread_id: str) -> Dict[str, Any]:
     if checkpointer is None:
         raise HTTPException(status_code=404, detail="Checkpointing disabled.")

@@ -110,7 +110,7 @@ class WebSearchTool(Tool):
     description = (
         "Search the public web for current information. Use when the user "
         "asks about events, news, or facts that may have changed since the "
-        "indexed UNEP corpus was last updated. "
+        "indexed document library was last updated. "
         "Input: {\"query\": \"<search query>\"}"
     )
 
@@ -227,20 +227,20 @@ def build_tools() -> Dict[str, Tool]:
 # ---------------------------------------------------------------------------
 
 TOOL_PLANNER_PROMPT = """You decide whether the user's question requires \
-calling external tools beyond the indexed UNEP document corpus.
+calling external tools beyond the indexed environmental document library.
 
 Available tools:
 {tool_descriptions}
 
 Decide:
-  - If answerable from UNEP documents alone, output {{"use_tools": false, "calls": []}}
+  - If answerable from the indexed documents alone, output {{"use_tools": false, "calls": []}}
   - If current info or arithmetic is required, output the tool calls needed
 
 Examples:
   Q: "What is the Kigali Amendment?" → no tools (corpus has it)
   Q: "What is the current price of carbon credits?" → web_search
   Q: "What is 4.5% of $50 billion?" → calculator
-  Q: "How has UNEP responded to recent floods in Pakistan?" → web_search
+  Q: "How have international agencies responded to recent floods in Pakistan?" → web_search
 
 Output strict JSON. Examples:
 {{"use_tools": false, "calls": []}}

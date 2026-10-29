@@ -67,10 +67,12 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openrouter").lower()
 
 # Azure (used when LLM_PROVIDER=azure)
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-AZURE_OPENAI_ENDPOINT = os.getenv(
-    "AZURE_OPENAI_ENDPOINT",
-    "https://unepazcsdopenai-comms.openai.azure.com/",
-)
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+if LLM_PROVIDER == "azure" and not AZURE_OPENAI_ENDPOINT:
+    raise ValueError(
+        "AZURE_OPENAI_ENDPOINT environment variable is required when "
+        "LLM_PROVIDER=azure"
+    )
 
 # OpenRouter (default)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -194,6 +196,12 @@ SUMMARY_CACHE_MAX_AGE_DAYS = int(os.getenv("SUMMARY_CACHE_MAX_AGE_DAYS", "7"))
 # Required to call /admin/cache/flush. Send as X-Admin-Token header.
 # If unset the endpoint returns 403 — force explicit configuration.
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
+
+# Shared secret the Next.js app sends as X-Internal-Secret. When set, the chat,
+# search and thread endpoints reject requests without it, so the API can only
+# be used through the app (which applies per-user quotas). Leave unset for
+# local development only.
+INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET")
 
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ Runs before condense_question. Routes the query to one of:
 
   - "greeting"   : "hi", "hello" → canned friendly reply
   - "smalltalk"  : "thanks", "ok" → brief acknowledgement
-  - "off_topic"  : unrelated to UNEP → polite redirect
+  - "off_topic"  : unrelated to the environment → polite redirect
   - "on_topic"   : the normal RAG flow
 
 A cheap regex pre-classifier catches obvious cases; ambiguous ones fall to
@@ -30,17 +30,18 @@ IntentLabel = Literal["greeting", "smalltalk", "off_topic", "on_topic"]
 
 INTENT_PROMPT = """Classify the user's message into one of four categories.
 
-UNEP is the United Nations Environment Programme. Its scope includes \
+The assistant answers questions about the environment. Its scope includes \
 climate, biodiversity, pollution, ecosystems, sustainability, environmental \
 policy, environmental treaties (Montreal Protocol, Kigali Amendment, Paris \
-Agreement, etc.), green economy, and related topics.
+Agreement, etc.), green economy, environmental organizations and their work, \
+and related topics.
 
 Categories:
 - "greeting"   : hello, hi, good morning, how are you
 - "smalltalk"  : thanks, ok, got it, bye, no further questions
-- "off_topic"  : unrelated to UNEP/environment (weather chitchat, sports, \
+- "off_topic"  : unrelated to the environment (weather chitchat, sports, \
 coding help, personal advice, math homework that isn't policy analysis)
-- "on_topic"   : anything about UNEP, the environment, climate, biodiversity, \
+- "on_topic"   : anything about the environment, environmental organizations, climate, biodiversity, \
 pollution, policy, treaties, sustainability — even casually phrased
 
 Respond with strict JSON in this exact shape, no preamble:
@@ -105,20 +106,21 @@ def classify_intent(llm: ChatOpenAI, message: str) -> IntentResult:
 
 
 GREETING_RESPONSE = (
-    "Hello! I'm a UNEP assistant. I can help you explore UNEP stories, "
-    "publications, speeches, and information about climate, biodiversity, "
+    "Hello! I'm EcoBuddy, an environmental knowledge assistant. I can help "
+    "you explore stories, publications, speeches, and information about "
+    "climate, biodiversity, "
     "pollution, ecosystems, and environmental policy. What would you like "
     "to know?"
 )
 
 SMALLTALK_RESPONSE = (
-    "You're welcome. Let me know if there's anything else about UNEP's work "
-    "or environmental topics I can help with."
+    "You're welcome. Let me know if there's anything else about "
+    "environmental topics I can help with."
 )
 
 OFF_TOPIC_RESPONSE = (
-    "That topic falls outside what I can help with. I'm focused on UNEP — "
-    "the United Nations Environment Programme — covering climate change, "
-    "biodiversity, pollution, ecosystems, sustainability, and environmental "
-    "policy. Is there a related question I can help with?"
+    "That topic falls outside what I can help with. I'm focused on the "
+    "environment: climate change, biodiversity, pollution, ecosystems, "
+    "sustainability, and environmental policy. Is there a related question "
+    "I can help with?"
 )

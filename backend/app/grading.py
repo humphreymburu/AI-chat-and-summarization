@@ -126,7 +126,7 @@ def grade_documents(
 # ---------------------------------------------------------------------------
 
 REWRITE_PROMPT = """The user asked a question that returned poor search results. \
-Rewrite the question to improve retrieval from a UN environmental policy corpus.
+Rewrite the question to improve retrieval from an environmental policy document library.
 
 Rules:
 - Preserve the user's intent

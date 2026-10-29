@@ -601,7 +601,7 @@ def clarification_answer(state: RAGState) -> Dict[str, Any]:
     original = state.get("question", "")
     rewritten = state.get("standalone_question", original)
     parts = [
-        "I wasn't able to find UNEP material that directly addresses your question.",
+        "I wasn't able to find material in the library that directly addresses your question.",
     ]
     if rewritten and rewritten != original:
         parts.append(
