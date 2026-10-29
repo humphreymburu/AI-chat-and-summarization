@@ -39,6 +39,8 @@ from app.config import (
     ADMIN_TOKEN,
     CHECKPOINT_PROVIDER,
     CORS_ALLOW_ORIGINS,
+    GUEST_MODEL,
+    GUEST_SUMMARY_MODEL,
     INTERNAL_API_SECRET,
     DEFAULT_RESOURCES_SCANNED,
     DEFAULT_TOTAL_KNOWLEDGE_HUBS,
@@ -50,6 +52,8 @@ from app.graph import build_rag_graph
 from app.llm import (
     build_chat_llm,
     build_grading_llm,
+    build_guest_chat_llm,
+    build_guest_summary_llm,
     build_hyde_llm,
     build_intent_llm,
     build_summary_llm,
@@ -76,6 +80,8 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 rag_graph = None
+# Same graph with the guest answer model; None when GUEST_MODEL is unset.
+guest_rag_graph = None
 checkpointer = None
 _checkpointer_teardown = None
 summary_cache = None
@@ -90,7 +96,7 @@ tools: Dict[str, Any] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global rag_graph, checkpointer, _checkpointer_teardown
+    global rag_graph, guest_rag_graph, checkpointer, _checkpointer_teardown
     global summary_cache, metrics, reranker, tools
 
     logger.info("startup_begin")
@@ -107,6 +113,8 @@ async def lifespan(app: FastAPI):
     intent_llm = build_intent_llm()
     tool_planner_llm = build_tool_planner_llm()
     summary_llm = build_summary_llm(chat_llm)
+    guest_chat_llm = build_guest_chat_llm()
+    guest_summary_llm = build_guest_summary_llm()
 
     # Embeddings
     embedding_fn = build_embeddings()
@@ -130,19 +138,25 @@ async def lifespan(app: FastAPI):
     checkpointer, _checkpointer_teardown = await build_checkpointer_async()
     summary_cache = build_summary_cache(client=os_client, embedding_function=embedding_fn)
 
-    # Compile the graph
-    rag_graph = build_rag_graph(
-        chat_llm=chat_llm,
+    # Compile the graph. Guests get a second graph that differs only in the
+    # answer model; both share the checkpointer so threads keep their history.
+    shared = dict(
         hyde_llm=hyde_llm,
         grading_llm=grading_llm,
         intent_llm=intent_llm,
         tool_planner_llm=tool_planner_llm,
-        summary_llm=summary_llm,
         retriever=retriever,
         reranker=reranker,
         tools=tools,
         checkpointer=checkpointer,
     )
+    rag_graph = build_rag_graph(chat_llm=chat_llm, summary_llm=summary_llm, **shared)
+    if guest_chat_llm is not None or guest_summary_llm is not None:
+        guest_rag_graph = build_rag_graph(
+            chat_llm=guest_chat_llm or chat_llm,
+            summary_llm=guest_summary_llm or summary_llm,
+            **shared,
+        )
     logger.info(
         "startup_graph_compiled",
         rerank_enabled=reranker is not None,
@@ -150,6 +164,8 @@ async def lifespan(app: FastAPI):
         checkpoint_provider=CHECKPOINT_PROVIDER,
         stream_intermediate=STREAM_INTERMEDIATE_STATE,
         summary_cache_enabled=summary_cache is not None,
+        guest_model=GUEST_MODEL,
+        guest_summary_model=GUEST_SUMMARY_MODEL,
     )
 
     yield
@@ -218,15 +234,22 @@ def _elapsed_ms(start: float) -> int:
 # /chat adapters
 # ---------------------------------------------------------------------------
 
+def _graph_for(req: Dict[str, Any]):
+    """Guests use the guest graph when one is configured."""
+    if req.get("tier") == "guest" and guest_rag_graph is not None:
+        return guest_rag_graph
+    return rag_graph
+
+
 def _invoke_graph(req: Dict[str, Any]) -> str:
-    state = rag_graph.invoke(_to_initial_state(req), config=_graph_config(req))
+    state = _graph_for(req).invoke(_to_initial_state(req), config=_graph_config(req))
     return state.get("answer", "")
 
 
 async def _astream_graph(req: Dict[str, Any]) -> AsyncIterator[str]:
     initial = _to_initial_state(req)
     config = _graph_config(req)
-    async for part in rag_graph.astream(
+    async for part in _graph_for(req).astream(
         initial,
         config=config,
         stream_mode="messages",
@@ -289,7 +312,7 @@ async def _astream_chat_response(
     char_count = 0
     logged_nodes: set[str] = set()
     final_answer = ""
-    async for part in rag_graph.astream(
+    async for part in _graph_for(req).astream(
         initial,
         config=config,
         stream_mode=["updates", "messages", "values"],
@@ -502,6 +525,8 @@ class UIChatRequest(BaseModel):
     mode: str = "search"
     filters: dict | None = None
     scope: str | None = None
+    # Set by the Next.js proxy from the session, never by the browser.
+    tier: str | None = None
 
 
 def _ui_message_text(message: Dict[str, Any]) -> str:
@@ -532,6 +557,7 @@ def _ui_request_to_payload(req: UIChatRequest) -> Dict[str, Any]:
         "filters": req.filters,
         "scope": req.scope,
         "thread_id": req.id,
+        "tier": req.tier,
     }
 
 
@@ -552,6 +578,8 @@ async def chat_ui(req: UIChatRequest):
         question_chars=len(payload["question"]),
         question_preview=payload["question"][:160],
         history_turns=len(payload["chat_history"]),
+        tier=payload.get("tier"),
+        guest_graph=_graph_for(payload) is guest_rag_graph,
     )
 
     async def event_generator():
@@ -621,6 +649,8 @@ class SearchRequest(BaseModel):
     cited_only: bool = False
     resources_scanned: Optional[int] = None
     total_knowledge_hubs: Optional[int] = None
+    # Set by the Next.js proxy from the session, never by the browser.
+    tier: Optional[str] = None
 
 
 @app.post(
@@ -657,7 +687,8 @@ async def search_endpoint(req: SearchRequest) -> SummaryResponse:
         "filters": filters,
         "timings": {},
     }
-    final_state = rag_graph.invoke(
+    graph = _graph_for({"tier": req.tier})
+    final_state = graph.invoke(
         initial_state,
         config=_graph_config({"thread_id": f"search:{uuid.uuid4()}"}),
     )
@@ -692,8 +723,9 @@ async def search_endpoint(req: SearchRequest) -> SummaryResponse:
         cited_only=req.cited_only,
     )
 
-    # Store async; never block the response on cache write
-    if summary_cache:
+    # Store async; never block the response on cache write. Summaries from a
+    # guest summary model aren't cached, so members are never served them.
+    if summary_cache and not (graph is guest_rag_graph and GUEST_SUMMARY_MODEL):
         asyncio.create_task(
             asyncio.to_thread(summary_cache.store, req.query, filters, response)
         )

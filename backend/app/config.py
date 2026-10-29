@@ -84,6 +84,22 @@ if LLM_PROVIDER == "openrouter" and not OPENROUTER_MODEL:
         "LLM_PROVIDER=openrouter"
     )
 
+# Guests (not logged in) get their own answer model, e.g. a free ":free"
+# OpenRouter model. Unset = guests use OPENROUTER_MODEL like everyone else.
+GUEST_MODEL = os.getenv("GUEST_MODEL") or None
+# Tried in order by OpenRouter if GUEST_MODEL errors or is rate-limited.
+GUEST_FALLBACK_MODELS = [
+    m.strip() for m in os.getenv("GUEST_FALLBACK_MODELS", "").split(",") if m.strip()
+]
+# Reasoning models (e.g. recursive/flint) think before answering; keep it
+# short so the answer isn't starved of tokens. Empty = don't send reasoning.
+GUEST_REASONING_EFFORT = os.getenv("GUEST_REASONING_EFFORT", "low").strip()
+GUEST_MAX_TOKENS = int(os.getenv("GUEST_MAX_TOKENS", "2048"))
+# Summary page answer model for guests. Separate because the structured
+# summary is long JSON that small reasoning models (e.g. flint) can't finish.
+# Unset = guests' summaries use the member summary model.
+GUEST_SUMMARY_MODEL = os.getenv("GUEST_SUMMARY_MODEL") or None
+
 # Specialized model slots — separate so you can tune per role.
 HYDE_MODEL = os.getenv("HYDE_MODEL", "anthropic/claude-haiku-4-5")
 GRADING_MODEL = os.getenv("GRADING_MODEL", "anthropic/claude-haiku-4-5")

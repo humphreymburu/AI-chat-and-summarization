@@ -23,10 +23,19 @@ export async function POST(req: Request) {
     );
   }
 
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return Response.json({ error: "Invalid request." }, { status: 400 });
+  }
+
   try {
     const response = await backendFetch("/search", {
       method: "POST",
-      body: raw,
+      // Decided here from the session; overrides anything the client sent.
+      // Guests are answered by the backend's GUEST_MODEL when one is set.
+      body: JSON.stringify({ ...body, tier: userId ? "member" : "guest" }),
     });
     return new Response(await response.text(), {
       status: response.status,

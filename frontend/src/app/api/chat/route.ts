@@ -64,6 +64,9 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         ...body,
         messages: messages.slice(-MAX_HISTORY_MESSAGES),
+        // Decided here from the session; overrides anything the client sent.
+        // Guests are answered by the backend's GUEST_MODEL when one is set.
+        tier: userId ? "member" : "guest",
       }),
       // Stops the backend work when the user presses Stop.
       signal: req.signal,

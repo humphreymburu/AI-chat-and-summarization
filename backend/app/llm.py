@@ -32,6 +32,11 @@ from app.config import (
     AZURE_OPENAI_API_KEY,
     AZURE_OPENAI_ENDPOINT,
     GRADING_MAX_TOKENS,
+    GUEST_FALLBACK_MODELS,
+    GUEST_MAX_TOKENS,
+    GUEST_MODEL,
+    GUEST_REASONING_EFFORT,
+    GUEST_SUMMARY_MODEL,
     GRADING_MODEL,
     HYDE_MAX_TOKENS,
     HYDE_MODEL,
@@ -67,6 +72,40 @@ def build_chat_llm() -> ChatOpenAI:
         openai_api_key=OPENROUTER_API_KEY,
         openai_api_base=OPENROUTER_BASE_URL,
     )
+
+
+def _build_guest_llm(model: str, max_tokens: int) -> ChatOpenAI:
+    """OpenRouter client for a guest model.
+
+    OpenRouter's ``models`` list falls back through GUEST_FALLBACK_MODELS on
+    errors and rate limits, so a busy free model doesn't fail the request.
+    """
+    extra_body: dict = {"models": [model, *GUEST_FALLBACK_MODELS]}
+    if GUEST_REASONING_EFFORT:
+        extra_body["reasoning"] = {"effort": GUEST_REASONING_EFFORT, "exclude": True}
+    return ChatOpenAI(
+        model=model,
+        streaming=True,
+        temperature=0.7,
+        max_tokens=max_tokens,
+        openai_api_key=OPENROUTER_API_KEY,
+        openai_api_base=OPENROUTER_BASE_URL,
+        extra_body=extra_body,
+    )
+
+
+def build_guest_chat_llm() -> ChatOpenAI | None:
+    """Chat answer LLM for guests, or None when GUEST_MODEL is unset (or on Azure)."""
+    if _is_azure() or not GUEST_MODEL:
+        return None
+    return _build_guest_llm(GUEST_MODEL, GUEST_MAX_TOKENS)
+
+
+def build_guest_summary_llm() -> ChatOpenAI | None:
+    """Summary LLM for guests, or None to reuse the member summary LLM."""
+    if _is_azure() or not GUEST_SUMMARY_MODEL:
+        return None
+    return _build_guest_llm(GUEST_SUMMARY_MODEL, SUMMARY_MAX_TOKENS)
 
 
 def build_hyde_llm() -> ChatOpenAI:
