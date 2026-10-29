@@ -2,11 +2,16 @@
 const { i18n } = require("./next-i18next.config");
 
 const isProd = process.env.NODE_ENV === "production";
+// Vercel serves its own build assets, so only use the CDN prefix elsewhere.
+// ASSET_PREFIX overrides both ("" disables the prefix).
+const assetPrefix =
+  process.env.ASSET_PREFIX ??
+  (isProd && !process.env.VERCEL ? "https://cdn.unenvironment.org" : "");
 
 module.exports = {
   reactStrictMode: true,
   i18n,
-  assetPrefix: isProd ? "https://cdn.unenvironment.org" : "",
+  assetPrefix,
   transpilePackages: [
     "rehype-raw",
     "hast-util-raw",
