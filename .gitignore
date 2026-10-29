@@ -22,3 +22,6 @@ AGENTS.md
 *.pub
 *.pem
 *.key
+
+# Local planning notes
+GUEST_FREE_MODELS_PLAN.md
