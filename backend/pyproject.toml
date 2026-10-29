@@ -1,0 +1,41 @@
+[project]
+name = "unep-search-backend"
+version = "0.1.0"
+description = "FastAPI and LangGraph backend for UNEP search and RAG."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cohere",
+    "fastapi[all]",
+    "langchain",
+    "langchain-community",
+    "langchain-openai",
+    "langgraph>=1.2",
+    "langgraph-checkpoint-redis",
+    "langgraph-checkpoint-sqlite",
+    "openai",
+    "opensearch-py",
+    "pydantic",
+    "requests",
+    "sse-starlette",
+    "structlog",
+    "python-dotenv",
+    "tiktoken",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

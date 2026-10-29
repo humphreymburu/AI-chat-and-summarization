@@ -1,0 +1,16 @@
+fastapi[all]
+langserve
+langchain
+langchain-community
+langchain-openai
+langgraph>=1.2
+langgraph-checkpoint-sqlite
+langgraph-checkpoint-redis
+opensearch-py
+pydantic
+structlog
+requests
+sse-starlette
+openai
+tiktoken
+cohere
