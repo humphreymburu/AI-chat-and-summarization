@@ -1,7 +1,6 @@
-# Local env files (keep .env.example tracked)
+# Local env files
 .env
 .env.*
-!.env.example
 
 # Registry credentials
 .dockerconfigjson
