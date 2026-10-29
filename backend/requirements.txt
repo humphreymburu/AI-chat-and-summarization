@@ -1,5 +1,4 @@
 fastapi[all]
-langserve
 langchain
 langchain-community
 langchain-openai
@@ -13,4 +12,5 @@ requests
 sse-starlette
 openai
 tiktoken
+python-dotenv
 cohere

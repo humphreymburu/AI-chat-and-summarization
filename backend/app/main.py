@@ -37,6 +37,7 @@ from app.checkpointing import build_checkpointer_async
 from app.config import (
     ADMIN_TOKEN,
     CHECKPOINT_PROVIDER,
+    CORS_ALLOW_ORIGINS,
     DEFAULT_RESOURCES_SCANNED,
     DEFAULT_TOTAL_KNOWLEDGE_HUBS,
     STARTUP_EMBEDDING_CHECK,
@@ -378,7 +379,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -886,4 +887,4 @@ def metrics_endpoint() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

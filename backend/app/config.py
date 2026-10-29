@@ -197,6 +197,19 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
 
 
 # ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
+# Comma-separated list of allowed origins, e.g.
+# "https://app.example.org,http://localhost:3000". Defaults to "*" (any origin).
+CORS_ALLOW_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+
+
+# ---------------------------------------------------------------------------
 # Stats (for /search response)
 # ---------------------------------------------------------------------------
 

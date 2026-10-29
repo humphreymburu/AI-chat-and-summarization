@@ -20,9 +20,6 @@ AGENTS.md
 *.tsbuildinfo
 
 # SSH keys / certificates
-humphrey
-humphrey.pub
-id_rsa*
-id_ed25519*
+*.pub
 *.pem
 *.key
