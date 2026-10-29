@@ -1,15 +1,15 @@
 "use client";
 
 import axios from "axios";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type {
   SummaryDocument,
   SummaryResponse,
-  SummaryStats,
   StructuredSummary,
 } from "@unep/bundles/search/results/summary-types";
 import KnowledgeNav from "@unep/components/KnowledgeNav";
+import { saveChatSeed } from "@unep/lib/chat-seed";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -35,16 +35,10 @@ const SUMMARY_SECTIONS: { label: string; key: keyof StructuredSummary }[] = [
 ];
 
 const SAMPLE_QUESTIONS = [
-  {
-    q: "What adaptation policies have been most effective in coastal regions?",
-    n: 23,
-  },
-  {
-    q: "How has food security changed under climate stress since 2020?",
-    n: 61,
-  },
-  { q: "Summarise international agreements on marine biodiversity.", n: 38 },
-  { q: "What are the projected carbon emission trends for G20 nations?", n: 44 },
+  "What adaptation policies have been most effective in coastal regions?",
+  "How has food security changed under climate stress since 2020?",
+  "Summarise international agreements on marine biodiversity.",
+  "What are the projected carbon emission trends for G20 nations?",
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -58,10 +52,6 @@ function formatDate(value?: string) {
     month: "short",
     year: "numeric",
   });
-}
-
-function scorePercent(score: number) {
-  return Math.max(0, Math.min(100, Math.round(score * 100)));
 }
 
 function deduplicateDocuments(docs: SummaryDocument[]): SummaryDocument[] {
@@ -78,166 +68,173 @@ function deduplicateDocuments(docs: SummaryDocument[]): SummaryDocument[] {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function StatsGrid({ stats }: { stats: SummaryStats }) {
-  const cards = [
-    { icon: "⊕", value: stats.results_found, label: "Results found" },
-    {
-      icon: "◈",
-      value: stats.resources_scanned.toLocaleString(),
-      label: "Resources scanned",
-    },
-    {
-      icon: "⬡",
-      value: stats.relevant_knowledge_hubs,
-      label: "Knowledge hubs",
-    },
-    { icon: "◷", value: `${stats.search_time_seconds}s`, label: "Search time" },
-  ];
+// Short tab labels for the five audience views.
+const TAB_LABELS: Record<keyof StructuredSummary, string> = {
+  executive_summary: "Overview",
+  insights_for_policymakers: "Policymakers",
+  insights_for_businesses: "Business",
+  insights_for_financial_institutions: "Finance",
+  insights_for_interested_people: "General public",
+};
+
+function matchLabel(score: number) {
+  if (score >= 0.5) return "Strong match";
+  if (score >= 0.3) return "Good match";
+  return "Partial match";
+}
+
+/** Renders [1] or [1, 2] markers as links to the numbered source list. */
+function CitedText({
+  text,
+  sourceFor,
+}: {
+  text: string;
+  sourceFor: (index: number) => number | undefined;
+}) {
+  const parts = text.split(/(\[\d+(?:\s*,\s*\d+)*\])/g);
   return (
-    <div className="kb-sum-stats-grid">
-      {cards.map(({ icon, value, label }) => (
-        <div key={label} className="kb-sum-stat-card">
-          <div className="kb-sum-stat-icon">{icon}</div>
-          <div className="kb-sum-stat-val">{value}</div>
-          <div className="kb-sum-stat-lbl">{label}</div>
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/^\[(\d+(?:\s*,\s*\d+)*)\]$/);
+        if (!match) return <span key={i}>{part}</span>;
+        const numbers = match[1].split(",").map((n) => Number(n.trim()));
+        return (
+          <span key={i} className="kb-cite-group">
+            {numbers.map((n, j) => {
+              const target = sourceFor(n);
+              return target === undefined ? (
+                <span key={j} className="kb-cite">
+                  {n}
+                </span>
+              ) : (
+                <a
+                  key={j}
+                  className="kb-cite"
+                  href={`#source-${target}`}
+                  aria-label={`Source ${n}`}
+                >
+                  {n}
+                </a>
+              );
+            })}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function SummaryAnswer({
+  summary,
+  sourceFor,
+}: {
+  summary: StructuredSummary;
+  sourceFor: (index: number) => number | undefined;
+}) {
+  const tabs = SUMMARY_SECTIONS.filter(({ key }) => summary[key]);
+  const [active, setActive] = useState(tabs[0]?.key);
+  if (tabs.length === 0) return null;
+
+  const move = (e: React.KeyboardEvent, i: number) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = tabs[(i + step + tabs.length) % tabs.length].key;
+    setActive(next);
+    document.getElementById(`tab-${next}`)?.focus();
+  };
+
+  return (
+    <section className="kb-answer" aria-label="Summary">
+      <div className="kb-answer-tabs" role="tablist" aria-label="Audience">
+        {tabs.map(({ key }, i) => (
+          <button
+            key={key}
+            id={`tab-${key}`}
+            type="button"
+            role="tab"
+            aria-selected={active === key}
+            aria-controls={`panel-${key}`}
+            tabIndex={active === key ? 0 : -1}
+            className={`kb-answer-tab${active === key ? " on" : ""}`}
+            onClick={() => setActive(key)}
+            onKeyDown={(e) => move(e, i)}
+          >
+            {TAB_LABELS[key]}
+          </button>
+        ))}
+      </div>
+      {tabs.map(({ label, key }) => (
+        <div
+          key={key}
+          id={`panel-${key}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${key}`}
+          hidden={active !== key}
+          className="kb-answer-panel"
+        >
+          <h2 className="kb-answer-heading">{label}</h2>
+          <p className="kb-answer-text">
+            <CitedText text={summary[key]} sourceFor={sourceFor} />
+          </p>
         </div>
       ))}
-    </div>
+      <p className="kb-answer-caveat">
+        Generated by AI from the sources below. Check the sources before relying
+        on it.
+      </p>
+    </section>
   );
 }
 
-function SummarySections({
-  query,
-  summary,
-}: {
-  query: string;
-  summary: StructuredSummary;
-}) {
+function SourceList({ documents }: { documents: SummaryDocument[] }) {
   return (
-    <div className="kb-sum-result-box" style={{ marginBottom: 20 }}>
-      <div className="kb-sum-result-heading">
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: "#3A7D52",
-            display: "inline-block",
-          }}
-        />
-        AI-Generated Response
-      </div>
-      <div className="kb-sum-result-query">{query}</div>
-      <div className="kb-sum-section-body">
-        {SUMMARY_SECTIONS.map(({ label, key }) =>
-          summary[key] ? (
-            <p key={key} style={{ marginBottom: 12 }}>
-              <strong style={{ fontWeight: 600, color: "#3A7D52" }}>
-                {label}:{" "}
-              </strong>
-              {summary[key]}
-            </p>
-          ) : null
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DocumentList({ documents }: { documents: SummaryDocument[] }) {
-  const unique = deduplicateDocuments(documents);
-  return (
-    <div className="kb-sum-result-box">
-      <div className="kb-doc-list-head">
-        <span style={{ fontSize: 16 }}>◫</span>
-        <span className="kb-doc-list-title">Search Results</span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "#bbb" }}>
-          {unique.length} document{unique.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-      <div className="kb-doc-list">
-        {unique.map((doc) => {
-          const score = scorePercent(doc.relevance_score);
-          return (
-            <article
-              key={`${doc.citation_index}-${doc.title}`}
-              className="kb-doc-card"
-            >
-              <div className="kb-doc-thumb">
-                {doc.thumbnail_url ? (
-                  <img src={doc.thumbnail_url} alt={doc.title} />
-                ) : (
-                  <span>◫</span>
-                )}
+    <section className="kb-sources" aria-label="Sources">
+      <h2 className="kb-sources-title">Sources</h2>
+      <ol className="kb-source-list">
+        {documents.map((doc) => (
+          <li
+            key={`${doc.citation_index}-${doc.title}`}
+            id={`source-${doc.citation_index}`}
+            className="kb-source-item"
+          >
+            <span className="kb-source-num">{doc.citation_index}</span>
+            <div className="kb-source-main">
+              {doc.url ? (
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="kb-source-link"
+                >
+                  {doc.title}
+                </a>
+              ) : (
+                <span className="kb-source-link">{doc.title}</span>
+              )}
+              <div className="kb-source-meta">
+                {[
+                  doc.source,
+                  formatDate(doc.publication_date),
+                  matchLabel(doc.relevance_score),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
-              <div className="kb-doc-body">
-                {doc.url ? (
-                  <a
-                    href={doc.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="kb-doc-title"
-                  >
-                    {doc.title}
-                  </a>
-                ) : (
-                  <div className="kb-doc-title">{doc.title}</div>
-                )}
-                <div className="kb-doc-meta">
-                  {[doc.source, formatDate(doc.publication_date)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-                <div className="kb-doc-relevance-bar">
-                  <div
-                    className="kb-doc-relevance-fill"
-                    style={{ width: `${score}%` }}
-                  />
-                </div>
-                {doc.topics?.length ? (
-                  <div className="kb-doc-topics">
-                    {doc.topics.map((topic) => (
-                      <span key={topic} className="kb-doc-topic">
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <p className="kb-doc-description">{doc.description}</p>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </div>
+              {doc.description ? (
+                <p className="kb-source-desc">{doc.description}</p>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
 function LoadingSkeleton() {
   return (
-    <div>
-      {/* Stats skeleton */}
-      <div className="kb-sum-stats-grid" style={{ marginBottom: 20 }}>
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="kb-sum-stat-card">
-            <div
-              className="kb-skeleton"
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: "50%",
-                marginBottom: 8,
-              }}
-            />
-            <div
-              className="kb-skeleton"
-              style={{ width: "55%", height: 22, marginBottom: 6 }}
-            />
-            <div className="kb-skeleton" style={{ width: "70%", height: 10 }} />
-          </div>
-        ))}
-      </div>
-      {/* Summary skeleton */}
+    <div role="status" aria-label="Preparing your summary">
       <div className="kb-sum-result-box" style={{ marginBottom: 20 }}>
         <div
           className="kb-skeleton"
@@ -251,46 +248,10 @@ function LoadingSkeleton() {
           />
         ))}
       </div>
-      {/* Docs skeleton */}
-      <div className="kb-sum-result-box">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="kb-doc-card">
-            <div
-              className="kb-skeleton kb-doc-thumb"
-              style={{ background: "#D6EFE0" }}
-            />
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div
-                className="kb-skeleton"
-                style={{ height: 14, width: "70%" }}
-              />
-              <div
-                className="kb-skeleton"
-                style={{ height: 10, width: "35%" }}
-              />
-              <div
-                className="kb-skeleton"
-                style={{ height: 3, width: "100%" }}
-              />
-              <div
-                className="kb-skeleton"
-                style={{ height: 11, width: "90%" }}
-              />
-              <div
-                className="kb-skeleton"
-                style={{ height: 11, width: "75%" }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      <p className="kb-sum-wait">
+        Reading the documents and writing your summary. This can take up to a
+        minute.
+      </p>
     </div>
   );
 }
@@ -303,6 +264,23 @@ export default function SummaryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<SummaryResponse | null>(null);
+  const [scopeUsed, setScopeUsed] = useState("all");
+  const router = useRouter();
+
+  // Documents without duplicates, keeping the numbers the answer cites.
+  const uniqueDocs = data ? deduplicateDocuments(data.documents ?? []) : [];
+  const sourceFor = (index: number) => {
+    const doc = data?.documents?.find((d) => d.citation_index === index);
+    if (!doc) return undefined;
+    const key = doc.url || doc.title;
+    return uniqueDocs.find((d) => (d.url || d.title) === key)?.citation_index;
+  };
+
+  const handleFollowUp = () => {
+    if (!data) return;
+    saveChatSeed(data);
+    router.push("/chat");
+  };
 
   const handleSummarise = async (q?: string) => {
     const kw = (q ?? query).trim();
@@ -317,11 +295,22 @@ export default function SummaryPage() {
         scope: activeScope,
       });
       setData(res.data as SummaryResponse);
+      setScopeUsed(activeScope);
     } catch (err) {
-      const message = axios.isAxiosError<{ error?: string }>(err)
-        ? err.response?.data?.error
-        : undefined;
-      setError(message ?? "Summary unavailable. Please try again.");
+      // Server errors carry raw technical text, so only show messages the app
+      // wrote itself (daily limit, question too long) and use plain wording
+      // for everything else.
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const message =
+        axios.isAxiosError<{ error?: string }>(err) &&
+        status !== undefined &&
+        status < 500
+          ? err.response?.data?.error
+          : undefined;
+      setError(
+        message ??
+          "We couldn't get a summary right now. Your question is still here. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -329,32 +318,16 @@ export default function SummaryPage() {
 
   return (
     <>
-      <div className="kb-root">
+      <div className="kb-root kb-calm">
         <KnowledgeNav />
 
         <div className="kb-wrap">
           {/* ── Hero + input — single centred column ── */}
           <div className="kb-summary-hero">
-            <div className="kb-eyebrow" style={{ textAlign: "center" }}>
-              02 — AI Summary
-            </div>
-            <h1
-              className="kb-h1"
-              style={{ textAlign: "center", marginBottom: 10 }}
-            >
-              Understand, <em>not just find.</em>
-            </h1>
-            <p
-              className="kb-sub"
-              style={{
-                textAlign: "center",
-                maxWidth: 480,
-                margin: "0 auto 32px",
-              }}
-            >
-              Ask a research question in plain language. The AI reads hundreds
-              of matching documents and returns a concise, cited answer — in
-              seconds.
+            <h1 className="kb-sum-title">AI Summary</h1>
+            <p className="kb-sum-lede">
+              Ask a research question and get a cited summary drawn from the
+              document library.
             </p>
 
             <div className="kb-sum-box">
@@ -362,6 +335,8 @@ export default function SummaryPage() {
                 <span className="kb-sum-spark">✦</span>
                 <input
                   className="kb-sum-input"
+                  type="text"
+                  aria-label="Research question"
                   placeholder="What are the main drivers of biodiversity loss?"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -370,8 +345,9 @@ export default function SummaryPage() {
                 <button
                   className="kb-chat-send"
                   onClick={() => handleSummarise()}
-                  disabled={loading}
+                  disabled={loading || !query.trim()}
                   title="Summarise"
+                  aria-label={loading ? "Summarising" : "Summarise"}
                 >
                   {loading ? (
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -416,6 +392,8 @@ export default function SummaryPage() {
                 {SCOPE_CHIPS.map(({ label, value }) => (
                   <button
                     key={value}
+                    type="button"
+                    aria-pressed={activeScope === value}
                     className={`kb-tag${activeScope === value ? " on" : ""}`}
                     onClick={() => setActiveScope(value)}
                   >
@@ -423,33 +401,35 @@ export default function SummaryPage() {
                   </button>
                 ))}
               </div>
-              <div className="kb-sum-footer-row">
-                <span className="kb-sum-hint">
-                  The AI reads matching documents and returns a cited synthesis.
-                </span>
-                <span className="kb-sum-credit">Powered by Claude</span>
-              </div>
             </div>
+
+            {error && !loading && (
+              <div className="kb-chat-error" role="alert">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  className="kb-chat-error-retry"
+                  onClick={() => handleSummarise()}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
 
             {/* Sample questions — shown before first search */}
             {!data && !loading && (
               <div style={{ marginTop: 24 }}>
-                <div
-                  className="kb-suggest-label"
-                  style={{ textAlign: "center" }}
-                >
-                  Try a sample question
-                </div>
+                <div className="kb-suggest-label">Try a sample question</div>
                 <div className="kb-suggest-grid">
-                  {SAMPLE_QUESTIONS.map(({ q, n }) => (
-                    <div
+                  {SAMPLE_QUESTIONS.map((q) => (
+                    <button
                       key={q}
+                      type="button"
                       className="kb-suggest-card"
                       onClick={() => handleSummarise(q)}
                     >
-                      <p>&ldquo;{q}&rdquo;</p>
-                      <span>{n} matching documents</span>
-                    </div>
+                      {q}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -459,121 +439,37 @@ export default function SummaryPage() {
           {/* ── Results area (full width below hero) ── */}
           {loading && <LoadingSkeleton />}
 
-          {error && !loading && (
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 16,
-                padding: "20px 24px",
-                border: "0.5px solid rgba(0,0,0,0.09)",
-                color: "#e8394e",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              {error}
-            </div>
-          )}
-
           {data && !loading && (
             <div className="kb-results-wrap">
-              {/* 4-card stats strip */}
-              {data.stats && <StatsGrid stats={data.stats} />}
+              <p className="kb-answer-basis">
+                Based on {uniqueDocs.length} document
+                {uniqueDocs.length !== 1 ? "s" : ""}
+                {data.stats?.resources_scanned
+                  ? ` from ${data.stats.resources_scanned.toLocaleString()} searched`
+                  : ""}
+                {" · "}
+                {SCOPE_CHIPS.find((c) => c.value === scopeUsed)?.label ??
+                  "All documents"}
+              </p>
 
-              {/* All five summary sections expanded */}
               {data.summary && (
-                <SummarySections query={data.query} summary={data.summary} />
+                <SummaryAnswer summary={data.summary} sourceFor={sourceFor} />
               )}
 
-              {/* Document results with thumbnail, relevance bar, topics */}
-              {data.documents?.length > 0 && (
-                <DocumentList documents={data.documents} />
-              )}
+              {uniqueDocs.length > 0 && <SourceList documents={uniqueDocs} />}
 
-              {/* Action bar */}
               <div className="kb-results-actions">
-                <Link
-                  href="/chat"
+                <button
+                  type="button"
                   className="kb-tag"
-                  style={{ textDecoration: "none" }}
+                  onClick={handleFollowUp}
                 >
-                  ✦ Ask a follow-up in Chat →
-                </Link>
-                <Link
-                  href="/search"
-                  className="kb-tag"
-                  style={{ textDecoration: "none" }}
-                >
-                  Browse all source docs →
-                </Link>
+                  Ask a follow-up in Chat →
+                </button>
               </div>
             </div>
           )}
         </div>
-
-        <KbFooter />
-      </div>
-    </>
-  );
-}
-
-function KbFooter() {
-  return (
-    <>
-      <footer className="kb-footer">
-        <div>
-          <div className="kb-ft-brand">
-            Eco<span>Buddy</span>
-          </div>
-          <div className="kb-ft-tag">
-            Research at the speed
-            <br />
-            of curiosity.
-          </div>
-        </div>
-        <div className="kb-ft-col">
-          <h5>Navigate</h5>
-          <ul>
-            <li>
-              <Link href="/search">Search</Link>
-            </li>
-            <li>
-              <Link href="/summary">AI Summary</Link>
-            </li>
-            <li>
-              <Link href="/chat">Chat</Link>
-            </li>
-          </ul>
-        </div>
-        <div className="kb-ft-col">
-          <h5>Platform</h5>
-          <ul>
-            <li>
-              <a href="#">API access</a>
-            </li>
-            <li>
-              <a href="#">Embed search</a>
-            </li>
-          </ul>
-        </div>
-        <div className="kb-ft-col">
-          <h5>Legal</h5>
-          <ul>
-            <li>
-              <a href="#">Privacy policy</a>
-            </li>
-            <li>
-              <a href="#">Terms of use</a>
-            </li>
-            <li>
-              <a href="#">Contact</a>
-            </li>
-          </ul>
-        </div>
-      </footer>
-      <div className="kb-footer-bar">
-        <span>© {new Date().getFullYear()} Environment Knowledge Platform.</span>
-        <span>Built for researchers, policymakers, and curious minds.</span>
       </div>
     </>
   );

@@ -30,6 +30,11 @@ const config = [
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
+  {
+    // Command-line scripts report progress on the console.
+    files: ["scripts/**"],
+    rules: { "no-console": "off" },
+  },
 ];
 
 export default config;

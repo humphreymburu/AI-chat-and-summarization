@@ -5,7 +5,7 @@ export default function NotFound() {
     <main style={{ padding: "4rem 1rem", textAlign: "center" }}>
       <h1>404 - Page Not Found</h1>
       <p>
-        <Link href="/search">Go to search</Link>
+        <Link href="/chat">Go to chat</Link>
       </p>
     </main>
   );

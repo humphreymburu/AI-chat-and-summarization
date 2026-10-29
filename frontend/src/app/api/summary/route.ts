@@ -1,26 +1,40 @@
-const backendUrl =
-  process.env.UNEP_AI_BACKEND_URL ||
-  process.env.NEXT_PUBLIC_UNEP_AI_BACKEND_URL ||
-  "http://127.0.0.1:8000";
+import { backendFetch } from "@unep/lib/backend";
+import { getUserId } from "@unep/lib/conversations";
+import { consumeChatQuota, getClientIp, quotaMessage } from "@unep/lib/usage";
 
-// Forwards the summary request to the backend /search endpoint.
+export const maxDuration = 120;
+
+const MAX_BODY_BYTES = 20_000;
+
+// Forwards the summary request to the backend /search endpoint. Each summary
+// counts as one question against the daily limit.
 export async function POST(req: Request) {
+  const raw = await req.text();
+  if (raw.length > MAX_BODY_BYTES) {
+    return Response.json({ error: "Question is too long." }, { status: 413 });
+  }
+
+  const userId = await getUserId();
+  const quota = await consumeChatQuota(userId, getClientIp(req.headers));
+  if (!quota.allowed) {
+    return Response.json(
+      { error: quotaMessage(quota.limit, Boolean(userId)) },
+      { status: 429 }
+    );
+  }
+
   try {
-    const response = await fetch(`${backendUrl.replace(/\/$/, "")}/search`, {
+    const response = await backendFetch("/search", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: await req.text(),
+      body: raw,
     });
     return new Response(await response.text(), {
       status: response.status,
       headers: { "Content-Type": "application/json" },
     });
-  } catch (err) {
+  } catch {
     return Response.json(
-      {
-        error:
-          err instanceof Error ? err.message : "Backend summary unavailable",
-      },
+      { error: "The summary service is unavailable. Please try again." },
       { status: 502 }
     );
   }

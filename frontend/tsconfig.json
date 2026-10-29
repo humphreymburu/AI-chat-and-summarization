@@ -37,6 +37,9 @@
       ],
       "@unep/views/*": [
         "src/views/*"
+      ],
+      "@unep/lib/*": [
+        "src/lib/*"
       ]
     },
     "incremental": true,
