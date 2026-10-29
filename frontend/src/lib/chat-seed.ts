@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 
-import type { SummaryResponse } from "@unep/bundles/search/results/summary-types";
+import type { SummaryResponse } from "@unep/lib/summary-types";
 
 const KEY = "ecobuddy-chat-seed";
 

@@ -3,13 +3,13 @@
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AppShell from "@unep/components/AppShell";
+import { saveChatSeed } from "@unep/lib/chat-seed";
 import type {
   SummaryDocument,
   SummaryResponse,
   StructuredSummary,
-} from "@unep/bundles/search/results/summary-types";
-import AppShell from "@unep/components/AppShell";
-import { saveChatSeed } from "@unep/lib/chat-seed";
+} from "@unep/lib/summary-types";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 

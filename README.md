@@ -19,7 +19,7 @@ documents and cites its sources.
  backend/      hybrid search (BM25 + vector) → rerank → grade → answer (LangGraph)
         │      streams answer + sources over SSE
         ▼
- frontend/     Next.js pages: /search, /summary, /chat
+ frontend/     Next.js pages: /chat, /summary
 ```
 
 **Retrieval pipeline (backend).** Each chat turn runs through a LangGraph graph:
